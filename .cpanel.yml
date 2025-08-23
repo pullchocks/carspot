@@ -3,7 +3,7 @@ deployment:
   tasks:
     - export DEPLOYPATH=/home/carsoijc/public_html/
     - export SOURCEPATH=/home/carsoijc/deployment/
-    - /bin/cp -R $SOURCEPATH/build/* $DEPLOYPATH/
+    - /bin/cp -R $SOURCEPATH/* $DEPLOYPATH/
     - /bin/cp -R $SOURCEPATH/api $DEPLOYPATH/
     - /bin/cp $SOURCEPATH/.htaccess $DEPLOYPATH/
     - /bin/chmod 644 $DEPLOYPATH/.htaccess
