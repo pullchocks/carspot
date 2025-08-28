@@ -1,0 +1,20 @@
+RewriteEngine On
+
+# Handle OAuth routes
+RewriteRule ^oauth/(.*)$ oauth/$1 [L]
+
+# Handle API routes
+RewriteRule ^api/(.*)$ api/$1 [L]
+
+# Handle Payment routes
+RewriteRule ^payment/(.*)$ payment/$1 [L]
+
+# Handle React Router (SPA routing)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.html [L]
+
+# Security headers
+Header always set X-Content-Type-Options nosniff
+Header always set X-Frame-Options DENY
+Header always set X-XSS-Protection "1; mode=block"
