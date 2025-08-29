@@ -1,4 +1,10 @@
 <?php
+// Configure session to ensure proper sharing
+ini_set('session.cookie_httponly', 1);
+ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
+ini_set('session.cookie_samesite', 'Lax');
+ini_set('session.cookie_path', '/');
+
 session_start();
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');

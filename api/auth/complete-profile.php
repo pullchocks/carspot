@@ -1,17 +1,31 @@
 <?php
+// Configure session to ensure proper sharing
+ini_set('session.cookie_httponly', 1);
+ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
+ini_set('session.cookie_samesite', 'Lax');
+ini_set('session.cookie_path', '/');
+
 session_start();
 require_once '../config_mysql.php';
 require_once '../database.php';
 
 header('Content-Type: application/json');
 
+// Debug logging
+error_log("Session data: " . print_r($_SESSION, true));
+error_log("Cookie data: " . print_r($_COOKIE, true));
+
 // Check if user is logged in via session or request body
 $userId = $_SESSION['user_id'] ?? null;
+error_log("Session user_id: " . ($userId ?? 'NULL'));
 
 // If no session, try to get user ID from request body (for frontend compatibility)
 if (!$userId) {
     $input = json_decode(file_get_contents('php://input'), true);
+    error_log("Request body: " . print_r($input, true));
+    
     $requestUserId = $input['user_id'] ?? null;
+    error_log("Request user_id: " . ($requestUserId ?? 'NULL'));
     
     if ($requestUserId) {
         // Verify the user exists and is valid
@@ -21,6 +35,9 @@ if (!$userId) {
             $stmt->execute([$requestUserId]);
             if ($stmt->rowCount() > 0) {
                 $userId = $requestUserId;
+                error_log("User verified from request body, userId: " . $userId);
+            } else {
+                error_log("User not found in database for ID: " . $requestUserId);
             }
         } catch (Exception $e) {
             error_log("User verification error: " . $e->getMessage());
