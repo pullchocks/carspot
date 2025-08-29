@@ -1,5 +1,11 @@
 RewriteEngine On
 
+# Handle OAuth API routes
+RewriteRule ^auth/gta-world-token$ auth/gta-world-token.php [L]
+RewriteRule ^auth/gta-world-user$ auth/gta-world-user.php [L]
+RewriteRule ^auth/gta-world-characters$ auth/gta-world-characters.php [L]
+RewriteRule ^auth/authenticate$ auth/authenticate.php [L]
+
 # Handle session check
 RewriteRule ^auth/session$ auth/check-session.php [L]
 RewriteRule ^auth/logout$ auth/logout.php [L]
