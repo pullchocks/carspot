@@ -1,8 +1,8 @@
 <?php
 session_start();
-require_once 'oauth-config.php';
-require_once 'api/config.php';
-require_once 'api/database.php';
+require_once '../oauth-config.php';
+require_once '../../api/config.php';
+require_once '../../api/database.php';
 
 // Step 1: Get authorization code
 if (!isset($_GET['code'])) {
@@ -55,49 +55,7 @@ $_SESSION['oauth_user'] = $user;
 $_SESSION['oauth_characters'] = $user['user']['character'] ?? [];
 $_SESSION['access_token'] = $accessToken;
 
-// Check if user exists in Car Spot database
-$forumId = $user['id'];
-$username = $user['username'];
-$discord = $user['discord'] ?? null;
-
-try {
-    $pdo = getConnection();
-    
-    // Check if user exists
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE forum_id = ?");
-    $stmt->execute([$forumId]);
-    $existingUser = $stmt->fetch();
-
-    if (!$existingUser) {
-        // Create new user
-        $insert = $pdo->prepare("INSERT INTO users (forum_id, username, discord_id, email, created_at) VALUES (?, ?, ?, ?, NOW())");
-        $insert->execute([$forumId, $username, $discord, $user['email'] ?? null]);
-        $userId = $pdo->lastInsertId();
-        
-        // Set session
-        $_SESSION['user_id'] = $userId;
-        $_SESSION['username'] = $username;
-        $_SESSION['forum_id'] = $forumId;
-        
-        // Redirect to complete profile if needed
-        header("Location: https://carspot.site/complete-profile");
-        exit;
-    } else {
-        // User exists, set session
-        $_SESSION['user_id'] = $existingUser['id'];
-        $_SESSION['username'] = $existingUser['username'];
-        $_SESSION['forum_id'] = $existingUser['forum_id'];
-        
-        // Check if profile is complete
-        if (empty($existingUser['phone_number']) || empty($existingUser['routing_number'])) {
-            header("Location: https://carspot.site/complete-profile");
-        } else {
-            header("Location: https://carspot.site/dashboard");
-        }
-        exit;
-    }
-} catch (Exception $e) {
-    error_log("OAuth callback error: " . $e->getMessage());
-    die("Authentication error occurred. Please try again.");
-}
+// Redirect to character selection (following FR system flow)
+header("Location: https://carspot.site/oauth/character-select.php");
+exit;
 ?>
