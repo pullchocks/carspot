@@ -9,6 +9,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once '../config_mysql.php';
+require_once '../database.php';
+
+// Ensure database constants are available
+if (!defined('DB_HOST') || !defined('DB_USER') || !defined('DB_PASSWORD') || !defined('DB_NAME') || !defined('DB_PORT')) {
+    error_log('Database configuration constants not found in authenticate.php');
+    http_response_code(500);
+    echo json_encode(['error' => 'Database configuration error']);
+    exit;
+}
+
+// Validate that we have a working database connection
+if (!isset($pdo) || !($pdo instanceof PDO)) {
+    error_log('Database connection not available in authenticate.php');
+    http_response_code(500);
+    echo json_encode(['error' => 'Database connection not available']);
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -27,6 +44,24 @@ if (!$gtaWorldUser || !isset($gtaWorldUser['id'])) {
 }
 
 try {
+    // Verify database connection is still active and refresh if needed
+    try {
+        $pdo->query('SELECT 1');
+    } catch (PDOException $e) {
+        // Connection lost, try to reconnect
+        try {
+            $dsn = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";charset=utf8mb4";
+            $pdo = new PDO($dsn, DB_USER, DB_PASSWORD, [
+                PDO::ATTR_TIMEOUT => 30,
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
+            ]);
+        } catch (PDOException $e) {
+            throw new Exception('Failed to reconnect to database: ' . $e->getMessage());
+        }
+    }
+    
     $gtaWorldId = $gtaWorldUser['id'];
     $gtaWorldUsername = $gtaWorldUser['username'] ?? '';
     $discord = $gtaWorldUser['discord'] ?? null;
@@ -35,16 +70,30 @@ try {
     
     // Check if user already exists in our system
     $stmt = $pdo->prepare("SELECT * FROM users WHERE gta_world_id = ?");
+    if (!$stmt) {
+        throw new Exception('Failed to prepare user query: ' . implode(', ', $pdo->errorInfo()));
+    }
     $stmt->execute([$gtaWorldId]);
     $existingUser = $stmt->fetch();
 
     if ($existingUser) {
         // User exists, update last login and return user data
         $updateStmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+        if (!$updateStmt) {
+            throw new Exception('Failed to prepare update query: ' . implode(', ', $pdo->errorInfo()));
+        }
         $updateStmt->execute([$existingUser['id']]);
         
         // Check if user has dealer account
-        $dealerStmt = $pdo->prepare("SELECT * FROM dealer_accounts WHERE user_id = ? AND status = 'active'");
+        $dealerStmt = $pdo->prepare("
+            SELECT da.*, dur.role as user_role 
+            FROM dealer_accounts da 
+            INNER JOIN dealer_user_roles dur ON da.id = dur.dealer_account_id 
+            WHERE dur.user_id = ? AND dur.is_active = TRUE AND da.status = 'active'
+        ");
+        if (!$dealerStmt) {
+            throw new Exception('Failed to prepare dealer query: ' . implode(', ', $pdo->errorInfo()));
+        }
         $dealerStmt->execute([$existingUser['id']]);
         $dealerAccount = $dealerStmt->fetch();
         
@@ -69,6 +118,10 @@ try {
     // User doesn't exist, create new user
     $characterName = $selectedCharacter ? $selectedCharacter['name'] : $gtaWorldUsername;
     
+    // Handle nullable fields - Discord might not be available for GTA World users
+    $discordValue = $discord ?: 'gta_world_' . $gtaWorldId; // Generate unique Discord-like identifier
+    $emailValue = $email ?: 'gta_world_' . $gtaWorldId . '@carspot.site'; // Generate unique email if none provided
+    
     $insertStmt = $pdo->prepare("
         INSERT INTO users (
             name, 
@@ -84,10 +137,14 @@ try {
         ) VALUES (?, ?, ?, ?, ?, ?, false, false, NOW(), NOW())
     ");
     
+    if (!$insertStmt) {
+        throw new Exception('Failed to prepare user insert query: ' . implode(', ', $pdo->errorInfo()));
+    }
+    
     $insertStmt->execute([
         $characterName,
-        $email,
-        $discord,
+        $emailValue,
+        $discordValue,
         $avatarUrl,
         $gtaWorldId,
         $gtaWorldUsername
@@ -96,8 +153,13 @@ try {
     $userId = $pdo->lastInsertId();
     
     // Create user's wallet/balance record
-    $walletStmt = $pdo->prepare("INSERT INTO user_wallets (user_id, balance) VALUES (?, 0)");
-    $walletStmt->execute([$userId]);
+    try {
+        $walletStmt = $pdo->prepare("INSERT INTO user_wallets (user_id, balance) VALUES (?, 0)");
+        $walletStmt->execute([$userId]);
+    } catch (Exception $walletError) {
+        error_log("Failed to create user wallet for user ID $userId: " . $walletError->getMessage());
+        // Continue without wallet - user can still function
+    }
     
     // Return the new user data
     $userData = [
@@ -118,7 +180,13 @@ try {
 
 } catch (Exception $e) {
     error_log("User authentication error: " . $e->getMessage());
+    error_log("Stack trace: " . $e->getTraceAsString());
+    error_log("Input data: " . print_r($input, true));
     http_response_code(500);
-    echo json_encode(['error' => 'Internal server error']);
+    echo json_encode([
+        'error' => 'Internal server error',
+        'details' => $e->getMessage(),
+        'timestamp' => date('Y-m-d H:i:s')
+    ]);
 }
 ?>
