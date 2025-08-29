@@ -71,12 +71,8 @@ try {
                 'name' => $character['firstname'] . ' ' . $character['lastname'],
                 'firstname' => $character['firstname'],
                 'lastname' => $character['lastname'],
-                'memberid' => $character['memberid'] ?? null,
-                'model' => $character['model'] ?? 'Unknown',
-                'level' => $character['level'] ?? 1,
-                'job' => $character['job'] ?? null,
-                'faction' => $character['faction'] ?? null,
-                'avatar_url' => $character['avatar_url'] ?? null
+                'memberid' => $character['memberid'] ?? null
+                // Removed level, job, faction, avatar_url since GTA World doesn't provide them
             ];
         }
     }
