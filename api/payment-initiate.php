@@ -61,7 +61,7 @@ try {
         'amount' => $amount,
         'routing_to' => $user['routing_number'],
         'reference' => $paymentReference,
-        'callback' => 'https://carspot.site/payment/callback.php',
+        'callback' => 'https://carspot.site/payment/callback/callback.php',
         'auth_key' => FLEECA_AUTH_KEY
     ]);
     

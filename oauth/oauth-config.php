@@ -2,7 +2,7 @@
 // GTA World OAuth Configuration for Car Spot
 define('CLIENT_ID', '29');
 define('CLIENT_SECRET', 'WPy568Q029DHCfGfuhbVqjQqzSm29JAVCMQeqbNh');
-define('REDIRECT_URI', 'https://carspot.site/oauth/callback.php');
+define('REDIRECT_URI', 'https://carspot.site/oauth/callback/callback.php');
 define('AUTH_URL', 'https://ucp.gta.world/oauth/authorize');
 define('TOKEN_URL', 'https://ucp.gta.world/oauth/token');
 define('API_URL', 'https://ucp.gta.world/api/');
