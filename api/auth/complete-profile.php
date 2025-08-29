@@ -5,8 +5,30 @@ require_once '../database.php';
 
 header('Content-Type: application/json');
 
-// Check if user is logged in
-if (!isset($_SESSION['user_id'])) {
+// Check if user is logged in via session or request body
+$userId = $_SESSION['user_id'] ?? null;
+
+// If no session, try to get user ID from request body (for frontend compatibility)
+if (!$userId) {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $requestUserId = $input['user_id'] ?? null;
+    
+    if ($requestUserId) {
+        // Verify the user exists and is valid
+        try {
+            $pdo = getConnection();
+            $stmt = $pdo->prepare("SELECT id FROM users WHERE id = ?");
+            $stmt->execute([$requestUserId]);
+            if ($stmt->rowCount() > 0) {
+                $userId = $requestUserId;
+            }
+        } catch (Exception $e) {
+            error_log("User verification error: " . $e->getMessage());
+        }
+    }
+}
+
+if (!$userId) {
     http_response_code(401);
     echo json_encode(['error' => 'User not authenticated']);
     exit;
@@ -50,7 +72,7 @@ try {
     
     // Check if routing number is already in use by another user
     $stmt = $pdo->prepare("SELECT id FROM users WHERE routing_number = ? AND id != ?");
-    $stmt->execute([$routingNumber, $_SESSION['user_id']]);
+    $stmt->execute([$routingNumber, $userId]);
     if ($stmt->rowCount() > 0) {
         http_response_code(400);
         echo json_encode(['error' => 'Routing number is already in use by another user']);
@@ -59,7 +81,7 @@ try {
     
     // Update user profile
     $stmt = $pdo->prepare("UPDATE users SET routing_number = ?, phone_number = ?, discord = ?, updated_at = NOW() WHERE id = ?");
-    $stmt->execute([$routingNumber, $phoneNumber, $discord, $_SESSION['user_id']]);
+    $stmt->execute([$routingNumber, $phoneNumber, $discord, $userId]);
     
     if ($stmt->rowCount() > 0) {
         echo json_encode([
