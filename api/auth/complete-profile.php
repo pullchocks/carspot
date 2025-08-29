@@ -1,6 +1,6 @@
 <?php
 session_start();
-require_once '../config.php';
+require_once '../config_mysql.php';
 require_once '../database.php';
 
 header('Content-Type: application/json');
@@ -23,6 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $input = json_decode(file_get_contents('php://input'), true);
 $routingNumber = $input['routing_number'] ?? null;
 $phoneNumber = $input['phone_number'] ?? null;
+$discord = $input['discord'] ?? null;
 
 if (!$routingNumber || !$phoneNumber) {
     http_response_code(400);
@@ -57,8 +58,8 @@ try {
     }
     
     // Update user profile
-    $stmt = $pdo->prepare("UPDATE users SET routing_number = ?, phone_number = ?, updated_at = NOW() WHERE id = ?");
-    $stmt->execute([$routingNumber, $phoneNumber, $_SESSION['user_id']]);
+    $stmt = $pdo->prepare("UPDATE users SET routing_number = ?, phone_number = ?, discord = ?, updated_at = NOW() WHERE id = ?");
+    $stmt->execute([$routingNumber, $phoneNumber, $discord, $_SESSION['user_id']]);
     
     if ($stmt->rowCount() > 0) {
         echo json_encode([

@@ -102,13 +102,16 @@ try {
             'name' => $existingUser['name'],
             'email' => $existingUser['email'],
             'discord' => $existingUser['discord'],
+            'phone_number' => $existingUser['phone_number'] ?? null,
+            'routing_number' => $existingUser['routing_number'] ?? null,
             'avatar_url' => $existingUser['avatar_url'],
             'is_dealer' => !empty($dealerAccount),
             'is_staff' => $existingUser['is_staff'] ? true : false,
             'staff_role' => $existingUser['staff_role'] ?? null,
             'company_name' => $dealerAccount['company_name'] ?? null,
             'gta_world_id' => $existingUser['gta_world_id'],
-            'gta_world_username' => $existingUser['gta_world_username']
+            'gta_world_username' => $existingUser['gta_world_username'],
+            'created_at' => $existingUser['created_at'] ?? null
         ];
         
         echo json_encode($userData);
@@ -168,12 +171,15 @@ try {
         'email' => $email,
         'discord' => $discord,
         'avatar_url' => $avatarUrl,
+        'phone_number' => null,
+        'routing_number' => null,
         'is_dealer' => false,
         'is_staff' => false,
         'staff_role' => null,
         'company_name' => null,
         'gta_world_id' => $gtaWorldId,
-        'gta_world_username' => $gtaWorldUsername
+        'gta_world_username' => $gtaWorldUsername,
+        'created_at' => date('Y-m-d H:i:s')
     ];
     
     echo json_encode($userData);
