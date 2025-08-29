@@ -10,10 +10,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once '../config_mysql.php';
 
-// GTA World OAuth configuration
-$clientId = "29";
-$clientSecret = "WPy568Q029DHCfGfuhbVqjQqzSm29JAVCMQeqbNh";
-$redirectUri = "http://localhost:3000/auth/callback"; // Update this for production
+// GTA World OAuth configuration - Updated with correct credentials
+$clientId = "72";
+$clientSecret = "m6oBgUkqNlX8ex8Pf4o2chlCluAPR5nsfitdnxMM";
+$redirectUri = "https://carspot.site/oauth/callback"; // Updated to match OAuth config
 $tokenUrl = "https://ucp.gta.world/oauth/token";
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
