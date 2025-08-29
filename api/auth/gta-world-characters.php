@@ -27,8 +27,8 @@ if (!preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
 $accessToken = $matches[1];
 
 try {
-    // Fetch user characters from GTA World
-    $ch = curl_init("https://ucp.gta.world/api/characters");
+    // Fetch user info (which includes characters) from GTA World
+    $ch = curl_init("https://ucp.gta.world/api/user");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         "Authorization: Bearer $accessToken"
@@ -39,28 +39,39 @@ try {
     curl_close($ch);
 
     if ($httpCode !== 200) {
-        error_log("GTA World characters API failed: HTTP $httpCode, Response: $response");
+        error_log("GTA World user API failed: HTTP $httpCode, Response: $response");
         http_response_code(400);
-        echo json_encode(['error' => 'Failed to fetch characters from GTA World']);
+        echo json_encode(['error' => 'Failed to fetch user data from GTA World']);
         exit;
     }
 
-    $charactersData = json_decode($response, true);
+    $userData = json_decode($response, true);
     
-    if (!$charactersData || !is_array($charactersData)) {
-        error_log("GTA World characters API invalid response: " . $response);
+    if (!$userData || !isset($userData['user']) || !isset($userData['user']['character'])) {
+        error_log("GTA World user API invalid response: " . $response);
         http_response_code(400);
-        echo json_encode(['error' => 'Invalid characters data from GTA World']);
+        echo json_encode(['error' => 'Invalid user data from GTA World']);
+        exit;
+    }
+
+    // Extract characters from the nested structure
+    $charactersData = $userData['user']['character'];
+    
+    if (!is_array($charactersData)) {
+        echo json_encode([]);
         exit;
     }
 
     // Process and return the characters data
     $characters = [];
     foreach ($charactersData as $character) {
-        if (isset($character['id']) && isset($character['name'])) {
+        if (isset($character['id']) && isset($character['firstname']) && isset($character['lastname'])) {
             $characters[] = [
                 'id' => $character['id'],
-                'name' => $character['name'],
+                'name' => $character['firstname'] . ' ' . $character['lastname'],
+                'firstname' => $character['firstname'],
+                'lastname' => $character['lastname'],
+                'memberid' => $character['memberid'] ?? null,
                 'model' => $character['model'] ?? 'Unknown',
                 'level' => $character['level'] ?? 1,
                 'job' => $character['job'] ?? null,

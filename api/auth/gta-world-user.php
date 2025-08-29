@@ -47,20 +47,31 @@ try {
 
     $userData = json_decode($response, true);
     
-    if (!$userData || !isset($userData['id'])) {
+    // Debug: Log what we received from GTA World
+    error_log("GTA World API Response: " . $response);
+    error_log("Decoded user data: " . print_r($userData, true));
+    
+    if (!$userData || !isset($userData['user']) || !isset($userData['user']['id'])) {
         error_log("GTA World user API invalid response: " . $response);
         http_response_code(400);
-        echo json_encode(['error' => 'Invalid user data from GTA World']);
+        echo json_encode([
+            'error' => 'Invalid user data from GTA World',
+            'received_data' => $userData,
+            'gta_world_response' => $response
+        ]);
         exit;
     }
 
+    // Extract user data from the nested structure
+    $user = $userData['user'];
+    
     // Return the user data
     echo json_encode([
-        'id' => $userData['id'],
-        'username' => $userData['username'] ?? '',
-        'discord' => $userData['discord'] ?? null,
-        'email' => $userData['email'] ?? null,
-        'avatar_url' => $userData['avatar_url'] ?? null
+        'id' => $user['id'],
+        'username' => $user['username'] ?? '',
+        'discord' => $user['discord'] ?? null,
+        'email' => $user['email'] ?? null,
+        'avatar_url' => $user['avatar_url'] ?? null
     ]);
 
 } catch (Exception $e) {
