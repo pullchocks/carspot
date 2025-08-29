@@ -31,15 +31,15 @@ if (!$routingNumber || !$phoneNumber) {
     exit;
 }
 
-// Validate routing number format (GTA World format)
-if (!preg_match('/^[0-9]{6,8}$/', $routingNumber)) {
+// Validate routing number format (Fleeca routing number - 9 digits)
+if (!preg_match('/^[0-9]{9}$/', $routingNumber)) {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid routing number format']);
     exit;
 }
 
-// Validate phone number format
-if (!preg_match('/^[0-9]{10,11}$/', $phoneNumber)) {
+// Validate phone number format - allow any number of digits
+if (!preg_match('/^[0-9]+$/', $phoneNumber)) {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid phone number format']);
     exit;
