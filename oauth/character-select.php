@@ -1,8 +1,8 @@
 <?php
 session_start();
 require_once 'oauth-config.php';
-require_once 'api/config.php';
-require_once 'api/database.php';
+require_once '../api/config.php';
+require_once '../api/database.php';
 
 // Make sure OAuth character data exists
 if (!isset($_SESSION['oauth_user']['user']['character'])) {
