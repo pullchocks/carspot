@@ -1,6 +1,6 @@
 <?php
 session_start();
-require_once '../config.php';
+require_once '../config_mysql.php';
 require_once '../database.php';
 
 header('Content-Type: application/json');
@@ -18,7 +18,7 @@ try {
     $pdo = getConnection();
     
     // Get user information
-    $stmt = $pdo->prepare("SELECT id, username, forum_id, email, balance, routing_number, phone_number, created_at FROM users WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT id, name, email, discord, phone_number, routing_number, avatar_url, is_dealer, staff_role, gta_world_id, gta_world_username, created_at FROM users WHERE id = ?");
     $stmt->execute([$_SESSION['user_id']]);
     $user = $stmt->fetch();
     
@@ -41,10 +41,16 @@ try {
         'authenticated' => true,
         'user' => [
             'id' => $user['id'],
-            'username' => $user['username'],
-            'forum_id' => $user['forum_id'],
+            'name' => $user['name'],
             'email' => $user['email'],
-            'balance' => $user['balance'],
+            'discord' => $user['discord'],
+            'phone_number' => $user['phone_number'],
+            'routing_number' => $user['routing_number'],
+            'avatar_url' => $user['avatar_url'],
+            'is_dealer' => $user['is_dealer'],
+            'staff_role' => $user['staff_role'],
+            'gta_world_id' => $user['gta_world_id'],
+            'gta_world_username' => $user['gta_world_username'],
             'profile_complete' => $profileComplete,
             'created_at' => $user['created_at']
         ]

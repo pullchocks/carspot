@@ -1,4 +1,5 @@
 <?php
+session_start();
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
@@ -97,6 +98,11 @@ try {
         $dealerStmt->execute([$existingUser['id']]);
         $dealerAccount = $dealerStmt->fetch();
         
+        // Set session variables for existing user
+        $_SESSION['user_id'] = $existingUser['id'];
+        $_SESSION['user_name'] = $existingUser['name'];
+        $_SESSION['gta_world_id'] = $existingUser['gta_world_id'];
+        
         $userData = [
             'id' => $existingUser['id'],
             'name' => $existingUser['name'],
@@ -162,6 +168,11 @@ try {
         error_log("Failed to create user wallet for user ID $userId: " . $walletError->getMessage());
         // Continue without wallet - user can still function
     }
+    
+    // Set session variables for new user
+    $_SESSION['user_id'] = $userId;
+    $_SESSION['user_name'] = $characterName;
+    $_SESSION['gta_world_id'] = $gtaWorldId;
     
     // Return the new user data
     $userData = [
