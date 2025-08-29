@@ -53,12 +53,12 @@ if (isset($_GET['code'])) {
     $_SESSION['oauth_characters'] = $user['user']['character'] ?? [];
     $_SESSION['access_token'] = $accessToken;
     
-    // Redirect to React app's auth callback route with the code
-    header("Location: https://carspot.site/auth/callback?code=" . urlencode($code));
+    // Redirect to PHP character selection page
+    header("Location: https://carspot.site/oauth/character-select.php");
     exit;
 }
 
-// If no code, redirect to React app
-header("Location: https://carspot.site/");
+// If no code, redirect to OAuth login
+header("Location: https://carspot.site/oauth/login.php");
 exit;
 ?>
