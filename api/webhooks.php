@@ -18,6 +18,7 @@ require_once 'database.php';
 try {
     $pdo = getDatabaseConnection();
 } catch (Exception $e) {
+    error_log('Webhook API: Database connection failed: ' . $e->getMessage());
     http_response_code(500);
     echo json_encode(['error' => 'Database connection failed: ' . $e->getMessage()]);
     exit;
@@ -61,6 +62,47 @@ switch ($_SERVER['REQUEST_METHOD']) {
 
 function getWebhookConfigs($pdo) {
     try {
+        // First check if the table exists
+        $stmt = $pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'webhook_configs'");
+        $tableExists = $stmt->fetchColumn();
+        
+        if (!$tableExists) {
+            // Create the table if it doesn't exist
+            $createTableSQL = "
+            CREATE TABLE IF NOT EXISTS webhook_configs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                webhook_id VARCHAR(100) UNIQUE NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                type ENUM('public', 'private', 'system') NOT NULL DEFAULT 'public',
+                url TEXT NOT NULL,
+                enabled BOOLEAN DEFAULT TRUE,
+                message_template TEXT NOT NULL,
+                example_data JSON DEFAULT '{}',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )";
+            
+            $pdo->exec($createTableSQL);
+            
+            // Insert default webhook configurations
+            $insertSQL = "
+            INSERT INTO webhook_configs (webhook_id, name, description, type, url, enabled, message_template, example_data) VALUES
+            ('new-postings', 'New Postings', 'Triggered when a user or dealer posts a new vehicle', 'public', '', TRUE, '🚗 **{username}** posted a new vehicle!\n**{make} {model}** - ${price}\n[View Posting]({posting_url})', '{\"username\": \"JohnDoe\", \"make\": \"BMW\", \"model\": \"M3\", \"price\": \"45,000\", \"posting_url\": \"https://carspot.site/cars/123\"}'),
+            ('new-featured', 'New Featured', 'Triggered when a vehicle becomes featured', 'public', '', TRUE, '⭐ **{username}** has a new featured vehicle!\n**{make} {model}** - ${price}\n[View Featured Posting]({posting_url})', '{\"username\": \"PremiumDealer\", \"make\": \"Mercedes\", \"model\": \"AMG GT\", \"price\": \"125,000\", \"posting_url\": \"https://carspot.site/cars/456\"}'),
+            ('price-alert', 'Price Changes', 'Triggered when vehicle prices change', 'public', '', TRUE, '💰 **Price Update** for {make} {model}\n**Old Price:** ${old_price} → **New Price:** ${new_price}\n[View Posting]({posting_url})', '{\"username\": \"Audi\", \"model\": \"RS6\", \"old_price\": \"85,000\", \"new_price\": \"79,500\", \"posting_url\": \"https://carspot.site/cars/789\"}'),
+            ('sold', 'Vehicle Sold', 'Triggered when a vehicle is marked as sold', 'public', '', TRUE, '✅ **{make} {model}** has been sold!\n**Seller:** {username}\n**Final Price:** ${price}', '{\"make\": \"Porsche\", \"model\": \"911\", \"username\": \"SportsCarDealer\", \"price\": \"95,000\"}'),
+            ('new-user', 'New User Registration', 'Triggered when a new user joins CarSpot', 'private', '', TRUE, '👋 **{username}** has joined CarSpot!', '{\"username\": \"NewUser123\"}'),
+            ('dealer-application', 'Dealer Application', 'Triggered when someone applies to become a dealer', 'private', '', TRUE, '🏢 **{username}** has applied to become a dealer!\n[Review Application]({application_url})', '{\"username\": \"AspiringDealer\", \"application_url\": \"https://carspot.site/admin/dealer-applications/123\"}'),
+            ('dealer-payment', 'Dealer Payment', 'Triggered when a dealer pays their membership dues', 'private', '', TRUE, '💳 **{username}** has paid their dealer membership dues!\n**Amount:** ${amount}\n**Plan:** {plan}', '{\"username\": \"PremiumDealer\", \"amount\": \"$99.99\", \"plan\": \"Premium Monthly\"}'),
+            ('tickets', 'Support Tickets', 'Triggered for ticket updates (creation, assignment, resolution)', 'system', '', TRUE, '🎫 **{action}**\n**User:** {username}\n**Subject:** {subject}\n[View Ticket]({ticket_url})', '{\"action\": \"New ticket submitted\", \"username\": \"User123\", \"subject\": \"Payment issue\", \"ticket_url\": \"https://carspot.site/admin/tickets/123\"}'),
+            ('reports', 'System Reports', 'Triggered for report updates (creation, investigation, resolution)', 'system', '', TRUE, '🚨 **{action}**\n**Reporter:** {username}\n**Type:** {report_type}\n[View Report]({report_url})', '{\"action\": \"New report submitted\", \"username\": \"Reporter456\", \"report_type\": \"Inappropriate content\", \"report_url\": \"https://carspot.site/admin/reports/456\"}')
+            ";
+            
+            $pdo->exec($insertSQL);
+        }
+        
+        // Now fetch the configurations
         $stmt = $pdo->query("SELECT * FROM webhook_configs ORDER BY type, name");
         $configs = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
@@ -68,7 +110,9 @@ function getWebhookConfigs($pdo) {
             'success' => true,
             'configs' => $configs
         ]);
+        
     } catch (Exception $e) {
+        error_log('Webhook API: Failed to fetch webhook configs: ' . $e->getMessage());
         http_response_code(500);
         echo json_encode([
             'success' => false,
@@ -114,6 +158,7 @@ function saveWebhookConfig($pdo) {
         ]);
         
     } catch (Exception $e) {
+        error_log('Webhook API: Failed to save webhook config: ' . $e->getMessage());
         http_response_code(400);
         echo json_encode([
             'success' => false,
@@ -169,6 +214,7 @@ function updateWebhookConfig($pdo) {
         ]);
         
     } catch (Exception $e) {
+        error_log('Webhook API: Failed to update webhook config: ' . $e->getMessage());
         http_response_code(400);
         echo json_encode([
             'success' => false,
