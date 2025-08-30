@@ -1,0 +1,575 @@
+<?php
+// Add CORS headers for cross-origin requests
+header('Access-Control-Allow-Origin: https://carspot.site');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+header('Access-Control-Allow-Credentials: true');
+
+// Handle preflight OPTIONS request
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    exit(0);
+}
+
+require_once 'database.php';
+
+$method = $_SERVER['REQUEST_METHOD'];
+
+switch ($method) {
+    case 'GET':
+        if (isset($_GET['action'])) {
+            switch ($_GET['action']) {
+                case 'check_user_role':
+                    checkUserDealerRole($_GET['user_id']);
+                    break;
+                case 'team':
+                    getDealerTeam($_GET['dealer_id']);
+                    break;
+                case 'pending_invitations':
+                    getPendingInvitations($_GET['dealer_id']);
+                    break;
+                case 'search_users':
+                    searchUsers($_GET['query']);
+                    break;
+                default:
+                    handleError('Invalid action', 400);
+            }
+        } elseif (isset($_GET['id'])) {
+            getDealerAccount($_GET['id']);
+        } else {
+            getDealerAccounts();
+        }
+        break;
+        
+    case 'POST':
+        $data = json_decode(file_get_contents('php://input'), true);
+        if (isset($_GET['action'])) {
+            switch ($_GET['action']) {
+                case 'create':
+                    createDealerAccount($data);
+                    break;
+                case 'add_user':
+                    addUserToDealer($data);
+                    break;
+                case 'invite':
+                    sendInvitation($data);
+                    break;
+                case 'add_team_member':
+                    addTeamMember($data);
+                    break;
+                default:
+                    handleError('Invalid action', 400);
+            }
+        } else {
+            createDealerAccount($data);
+        }
+        break;
+        
+    case 'PUT':
+        $data = json_decode(file_get_contents('php://input'), true);
+        if (isset($_GET['action'])) {
+            switch ($_GET['action']) {
+                case 'update':
+                    updateDealerAccount($data);
+                    break;
+                case 'accept_invitation':
+                    acceptInvitation($data);
+                    break;
+                case 'decline_invitation':
+                    declineInvitation($data);
+                    break;
+                default:
+                    handleError('Invalid action', 400);
+            }
+        } else {
+            updateDealerAccount($data);
+        }
+        break;
+        
+    case 'DELETE':
+        $id = $_GET['id'] ?? null;
+        if (!$id) handleError('Dealer ID required');
+        deleteDealerAccount($id);
+        break;
+        
+    default:
+        handleError('Method not allowed', 405);
+}
+
+function getDealerAccounts() {
+    global $pdo;
+    
+    try {
+        $query = "SELECT * FROM dealer_accounts ORDER BY created_at DESC";
+        $stmt = $pdo->prepare($query);
+        $stmt->execute();
+        $dealers = $stmt->fetchAll();
+        
+        jsonResponse($dealers);
+        
+    } catch (Exception $e) {
+        handleError('Failed to get dealer accounts: ' . $e->getMessage(), 500);
+    }
+}
+
+function getDealerAccount($id) {
+    global $pdo;
+    
+    try {
+        $query = "SELECT * FROM dealer_accounts WHERE id = ?";
+        $stmt = $pdo->prepare($query);
+        $stmt->execute([$id]);
+        $dealer = $stmt->fetch();
+        
+        if ($dealer) {
+            jsonResponse($dealer);
+        } else {
+            handleError('Dealer account not found', 404);
+        }
+        
+    } catch (Exception $e) {
+        handleError('Failed to get dealer account: ' . $e->getMessage(), 500);
+    }
+}
+
+function createDealerAccount($data) {
+    global $pdo;
+    
+    try {
+        $required = ['name', 'company_name', 'phone', 'discord'];
+        foreach ($required as $field) {
+            if (empty($data[$field])) {
+                handleError("Missing required field: $field");
+            }
+        }
+        
+        $query = "
+            INSERT INTO dealer_accounts (name, company_name, phone, discord, website, expected_monthly_listings, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'pending', NOW())
+            RETURNING id
+        ";
+        
+        $stmt = $pdo->prepare($query);
+        $stmt->execute([
+            $data['name'],
+            $data['company_name'],
+            $data['phone'],
+            $data['discord'],
+            $data['website'] ?? null,
+            $data['expected_monthly_listings'] ?? null
+        ]);
+        
+        $dealerId = $stmt->fetchColumn();
+        jsonResponse(['id' => $dealerId, 'message' => 'Dealer account created successfully'], 201);
+        
+    } catch (Exception $e) {
+        handleError('Failed to create dealer account: ' . $e->getMessage(), 500);
+    }
+}
+
+function updateDealerAccount($data) {
+    global $pdo;
+    
+    try {
+        if (empty($data['id'])) {
+            handleError('Dealer ID required');
+        }
+        
+        $fields = [];
+        $params = [];
+        
+        $updatableFields = ['name', 'company_name', 'phone', 'discord', 'website', 'expected_monthly_listings', 'status'];
+        foreach ($updatableFields as $field) {
+            if (isset($data[$field])) {
+                $fields[] = "$field = ?";
+                $params[] = $data[$field];
+            }
+        }
+        
+        if (empty($fields)) {
+            handleError('No fields to update');
+        }
+        
+        $fields[] = "updated_at = NOW()";
+        $params[] = $data['id'];
+        
+        $query = "UPDATE dealer_accounts SET " . implode(', ', $fields) . " WHERE id = ?";
+        
+        $stmt = $pdo->prepare($query);
+        $stmt->execute($params);
+        
+        if ($stmt->rowCount() > 0) {
+            jsonResponse(['message' => 'Dealer account updated successfully']);
+        } else {
+            handleError('Dealer account not found', 404);
+        }
+        
+    } catch (Exception $e) {
+        handleError('Failed to update dealer account: ' . $e->getMessage(), 500);
+    }
+}
+
+function deleteDealerAccount($id) {
+    global $pdo;
+    
+    try {
+        $query = "DELETE FROM dealer_accounts WHERE id = ?";
+        $stmt = $pdo->prepare($query);
+        $stmt->execute([$id]);
+        
+        if ($stmt->rowCount() > 0) {
+            jsonResponse(['message' => 'Dealer account deleted successfully']);
+        } else {
+            handleError('Dealer account not found', 404);
+        }
+        
+    } catch (Exception $e) {
+        handleError('Failed to delete dealer account: ' . $e->getMessage(), 500);
+    }
+}
+
+function addUserToDealer($data) {
+    global $pdo;
+    
+    try {
+        $required = ['dealer_id', 'user_id', 'role'];
+        foreach ($required as $field) {
+            if (empty($data[$field])) {
+                handleError("Missing required field: $field");
+            }
+        }
+        
+        // Check if user is already in this dealer team
+        $checkQuery = "SELECT id FROM dealer_user_roles WHERE dealer_account_id = ? AND user_id = ?";
+        $checkStmt = $pdo->prepare($checkQuery);
+        $checkStmt->execute([$data['dealer_id'], $data['user_id']]);
+        
+        if ($checkStmt->fetch()) {
+            handleError('User is already a member of this dealer team', 409);
+        }
+        
+        $query = "
+            INSERT INTO dealer_user_roles (dealer_account_id, user_id, role, permissions, created_at)
+            VALUES (?, ?, ?, ?, NOW())
+            RETURNING id
+        ";
+        
+        $permissions = getPermissionsForRole($data['role']);
+        
+        $stmt = $pdo->prepare($query);
+        $stmt->execute([
+            $data['dealer_id'],
+            $data['user_id'],
+            $data['role'],
+            json_encode($permissions)
+        ]);
+        
+        $roleId = $stmt->fetchColumn();
+        jsonResponse(['id' => $roleId, 'message' => 'User added to dealer team successfully'], 201);
+        
+    } catch (Exception $e) {
+        handleError('Failed to add user to dealer: ' . $e->getMessage(), 500);
+    }
+}
+
+function getDealerTeam($dealerId) {
+    global $pdo;
+    
+    try {
+        $query = "
+            SELECT dur.*, u.username, u.email
+            FROM dealer_user_roles dur
+            JOIN users u ON dur.user_id = u.id
+            WHERE dur.dealer_account_id = ?
+            ORDER BY dur.created_at ASC
+        ";
+        
+        $stmt = $pdo->prepare($query);
+        $stmt->execute([$dealerId]);
+        $team = $stmt->fetchAll();
+        
+        jsonResponse($team);
+        
+    } catch (Exception $e) {
+        handleError('Failed to get dealer team: ' . $e->getMessage(), 500);
+    }
+}
+
+function sendInvitation($data) {
+    global $pdo;
+    
+    try {
+        $required = ['dealer_account_id', 'email', 'role'];
+        foreach ($required as $field) {
+            if (empty($data[$field])) {
+                handleError("Missing required field: $field");
+            }
+        }
+        
+        // Check if invitation already exists
+        $checkQuery = "SELECT id FROM dealer_invitations WHERE dealer_account_id = ? AND email = ? AND status = 'pending'";
+        $checkStmt = $pdo->prepare($checkQuery);
+        $checkStmt->execute([$data['dealer_account_id'], $data['email']]);
+        
+        if ($checkStmt->fetch()) {
+            handleError('Invitation already exists for this email', 409);
+        }
+        
+        $query = "
+            INSERT INTO dealer_invitations (dealer_account_id, email, role, status, expires_at, created_at)
+            VALUES (?, ?, ?, 'pending', ?, NOW())
+            RETURNING id
+        ";
+        
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+7 days'));
+        
+        $stmt = $pdo->prepare($query);
+        $stmt->execute([
+            $data['dealer_account_id'],
+            $data['email'],
+            $data['role'],
+            $expiresAt
+        ]);
+        
+        $invitationId = $stmt->fetchColumn();
+        jsonResponse(['id' => $invitationId, 'message' => 'Invitation sent successfully'], 201);
+        
+    } catch (Exception $e) {
+        handleError('Failed to send invitation: ' . $e->getMessage(), 500);
+    }
+}
+
+function getPendingInvitations($dealerId) {
+    global $pdo;
+    
+    try {
+        $query = "
+            SELECT * FROM dealer_invitations 
+            WHERE dealer_account_id = ? AND status = 'pending' AND expires_at > NOW()
+            ORDER BY created_at DESC
+        ";
+        
+        $stmt = $pdo->prepare($query);
+        $stmt->execute([$dealerId]);
+        $invitations = $stmt->fetchAll();
+        
+        jsonResponse($invitations);
+        
+    } catch (Exception $e) {
+        handleError('Failed to get pending invitations: ' . $e->getMessage(), 500);
+    }
+}
+
+function acceptInvitation($data) {
+    global $pdo;
+    
+    try {
+        if (empty($data['invitation_id']) || empty($data['user_id'])) {
+            handleError('Invitation ID and user ID required');
+        }
+        
+        // Get invitation details
+        $invQuery = "SELECT * FROM dealer_invitations WHERE id = ? AND status = 'pending'";
+        $invStmt = $pdo->prepare($invQuery);
+        $invStmt->execute([$data['invitation_id']]);
+        $invitation = $invStmt->fetch();
+        
+        if (!$invitation) {
+            handleError('Invitation not found or already processed', 404);
+        }
+        
+        // Check if invitation has expired
+        if (strtotime($invitation['expires_at']) < time()) {
+            handleError('Invitation has expired', 400);
+        }
+        
+        // Add user to dealer team
+        $addUserData = [
+            'dealer_id' => $invitation['dealer_account_id'],
+            'user_id' => $data['user_id'],
+            'role' => $invitation['role']
+        ];
+        
+        addUserToDealer($addUserData);
+        
+        // Update invitation status
+        $updateQuery = "UPDATE dealer_invitations SET status = 'accepted', updated_at = NOW() WHERE id = ?";
+        $updateStmt = $pdo->prepare($updateQuery);
+        $updateStmt->execute([$data['invitation_id']]);
+        
+        jsonResponse(['message' => 'Invitation accepted successfully']);
+        
+    } catch (Exception $e) {
+        handleError('Failed to accept invitation: ' . $e->getMessage(), 500);
+    }
+}
+
+function declineInvitation($data) {
+    global $pdo;
+    
+    try {
+        if (empty($data['invitation_id'])) {
+            handleError('Invitation ID required');
+        }
+        
+        $query = "UPDATE dealer_invitations SET status = 'declined', updated_at = NOW() WHERE id = ?";
+        $stmt = $pdo->prepare($query);
+        $stmt->execute([$data['invitation_id']]);
+        
+        if ($stmt->rowCount() > 0) {
+            jsonResponse(['message' => 'Invitation declined successfully']);
+        } else {
+            handleError('Invitation not found', 404);
+        }
+        
+    } catch (Exception $e) {
+        handleError('Failed to decline invitation: ' . $e->getMessage(), 500);
+    }
+}
+
+function getPermissionsForRole($role) {
+    switch ($role) {
+        case 'owner':
+            return ['read', 'write', 'delete', 'manage_team', 'manage_settings'];
+        case 'manager':
+            return ['read', 'write', 'manage_team'];
+        case 'staff':
+            return ['read', 'write'];
+        default:
+            return ['read'];
+    }
+}
+
+function checkUserDealerRole($userId) {
+    global $pdo;
+    
+    try {
+        if (empty($userId)) {
+            handleError('User ID required');
+        }
+        
+        // First check if user is a dealer themselves
+        $dealerQuery = "SELECT id, company_name FROM dealer_accounts WHERE discord = (SELECT discord FROM users WHERE id = ?)";
+        $dealerStmt = $pdo->prepare($dealerQuery);
+        $dealerStmt->execute([$userId]);
+        $dealerAccount = $dealerStmt->fetch();
+        
+        if ($dealerAccount) {
+            jsonResponse([
+                'is_dealer' => true,
+                'dealer_account_id' => $dealerAccount['id'],
+                'company_name' => $dealerAccount['company_name'],
+                'role' => 'owner'
+            ]);
+        }
+        
+        // Check if user is a team member of any dealer
+        $teamQuery = "
+            SELECT dur.dealer_account_id, dur.role, da.company_name
+            FROM dealer_user_roles dur
+            JOIN dealer_accounts da ON dur.dealer_account_id = da.id
+            WHERE dur.user_id = ? AND dur.is_active = true
+        ";
+        $teamStmt = $pdo->prepare($teamQuery);
+        $teamStmt->execute([$userId]);
+        $teamRole = $teamStmt->fetch();
+        
+        if ($teamRole) {
+            jsonResponse([
+                'is_dealer' => true,
+                'dealer_account_id' => $teamRole['dealer_account_id'],
+                'company_name' => $teamRole['company_name'],
+                'role' => $teamRole['role']
+            ]);
+        }
+        
+        // User is not a dealer
+        jsonResponse([
+            'is_dealer' => false,
+            'dealer_account_id' => null,
+            'company_name' => null,
+            'role' => null
+        ]);
+        
+    } catch (Exception $e) {
+        handleError('Failed to check user dealer role: ' . $e->getMessage(), 500);
+    }
+}
+
+function searchUsers($query) {
+    global $pdo;
+    
+    try {
+        if (empty($query)) {
+            handleError('Search query required');
+        }
+        
+        // Search by username, GTA World username, or Discord
+        $searchQuery = "
+            SELECT 
+                id, 
+                name, 
+                gta_world_username, 
+                discord, 
+                is_dealer, 
+                is_staff
+            FROM users 
+            WHERE 
+                name LIKE ? OR 
+                gta_world_username LIKE ? OR 
+                discord LIKE ?
+            ORDER BY name 
+            LIMIT 20
+        ";
+        
+        $searchTerm = "%{$query}%";
+        $stmt = $pdo->prepare($searchQuery);
+        $stmt->execute([$searchTerm, $searchTerm, $searchTerm]);
+        $users = $stmt->fetchAll();
+        
+        jsonResponse($users);
+        
+    } catch (Exception $e) {
+        handleError('Failed to search users: ' . $e->getMessage(), 500);
+    }
+}
+
+function addTeamMember($data) {
+    global $pdo;
+    
+    try {
+        if (empty($data['dealer_account_id']) || empty($data['user_id']) || empty($data['role'])) {
+            handleError('Dealer account ID, user ID, and role are required');
+        }
+        
+        // Check if user is already a team member
+        $checkQuery = "
+            SELECT id FROM dealer_user_roles 
+            WHERE dealer_account_id = ? AND user_id = ? AND is_active = true
+        ";
+        $checkStmt = $pdo->prepare($checkQuery);
+        $checkStmt->execute([$data['dealer_account_id'], $data['user_id']]);
+        
+        if ($checkStmt->fetch()) {
+            handleError('User is already a team member');
+        }
+        
+        // Add user to team
+        $insertQuery = "
+            INSERT INTO dealer_user_roles (dealer_account_id, user_id, role, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, true, NOW(), NOW())
+        ";
+        $insertStmt = $pdo->prepare($insertQuery);
+        $insertStmt->execute([
+            $data['dealer_account_id'], 
+            $data['user_id'], 
+            $data['role']
+        ]);
+        
+        jsonResponse(['message' => 'Team member added successfully']);
+        
+    } catch (Exception $e) {
+        handleError('Failed to add team member: ' . $e->getMessage(), 500);
+    }
+}
+?>
+

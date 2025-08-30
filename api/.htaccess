@@ -1,0 +1,32 @@
+RewriteEngine On
+
+# Handle OAuth API routes
+RewriteRule ^auth/gta-world-token$ auth/gta-world-token.php [L]
+RewriteRule ^auth/gta-world-user$ auth/gta-world-user.php [L]
+RewriteRule ^auth/gta-world-characters$ auth/gta-world-characters.php [L]
+RewriteRule ^auth/authenticate$ auth/authenticate.php [L]
+
+# Handle session check
+RewriteRule ^auth/session$ auth/check-session.php [L]
+RewriteRule ^auth/logout$ auth/logout.php [L]
+
+# Handle payment initiation
+RewriteRule ^payment/initiate$ payment-initiate.php [L]
+
+# Handle profile management
+RewriteRule ^auth/profile$ auth/profile.php [L]
+RewriteRule ^auth/complete-profile$ auth/complete-profile.php [L]
+
+# Handle transactions
+RewriteRule ^transactions$ transactions.php [L]
+
+# Set CORS headers for API requests
+Header always set Access-Control-Allow-Origin "*"
+Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+Header always set Access-Control-Allow-Headers "Content-Type, Authorization"
+
+# Handle preflight requests
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^(.*)$ $1 [R=200,L]
+
+
