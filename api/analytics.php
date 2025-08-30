@@ -95,7 +95,7 @@ function getUserAnalytics() {
             'users_by_role' => "
                 SELECT 
                     CASE 
-                        WHEN is_staff THEN 'staff'
+                        WHEN staff_role IS NOT NULL THEN 'staff'
                         WHEN is_dealer THEN 'dealer'
                         ELSE 'private'
                     END as role,
