@@ -102,7 +102,6 @@ function createUser($data) {
         $query = "
             INSERT INTO users (username, email, discord, created_at)
             VALUES (?, ?, ?, NOW())
-            RETURNING id
         ";
         
         $stmt = $pdo->prepare($query);
@@ -112,7 +111,7 @@ function createUser($data) {
             $data['discord']
         ]);
         
-        $userId = $stmt->fetchColumn();
+        $userId = $pdo->lastInsertId();
         jsonResponse(['id' => $userId, 'message' => 'User created successfully'], 201);
         
     } catch (Exception $e) {

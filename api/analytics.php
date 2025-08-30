@@ -70,7 +70,7 @@ function getDashboardAnalytics() {
             'total_revenue' => "SELECT COALESCE(SUM(amount), 0) as total FROM payment_transactions WHERE status = 'completed'",
             'new_users_today' => "SELECT COUNT(*) as count FROM users WHERE DATE(created_at) = CURRENT_DATE",
             'new_cars_today' => "SELECT COUNT(*) as count FROM cars WHERE DATE(created_at) = CURRENT_DATE",
-            'active_listings' => "SELECT COUNT(*) as count FROM cars WHERE status = 'active' AND listing_end_date > NOW()",
+            'active_listings' => "SELECT COUNT(*) as count FROM cars WHERE status = 'active'",
             'total_sales' => "SELECT COUNT(*) as count FROM car_sales",
             'verified_sales' => "SELECT COUNT(*) as count FROM car_sales WHERE is_verified = TRUE",
             'pending_sale_verification' => "SELECT COUNT(*) as count FROM car_sales WHERE is_verified = FALSE",
@@ -250,7 +250,7 @@ function getRevenueAnalytics() {
         $queries = [
             'revenue_by_month' => "
                 SELECT 
-                    DATE_TRUNC('month', created_at) as month,
+                    DATE_FORMAT(created_at, '%Y-%m-01') as month,
                     SUM(amount) as revenue,
                     COUNT(*) as transactions
                 FROM payment_transactions
@@ -273,7 +273,7 @@ function getRevenueAnalytics() {
                     DATE(created_at) as date,
                     SUM(amount) as revenue
                 FROM payment_transactions
-                WHERE status = 'completed' AND created_at >= CURRENT_DATE - INTERVAL '30 days'
+                WHERE status = 'completed' AND created_at >= DATE_SUB(CURRENT_DATE, INTERVAL 30 DAY)
                 GROUP BY date
                 ORDER BY date DESC
             "
@@ -379,7 +379,6 @@ function logStaffAction($data) {
         $query = "
             INSERT INTO staff_actions (staff_id, action_type, target_type, target_id, details, created_at)
             VALUES (?, ?, ?, ?, ?, NOW())
-            RETURNING id
         ";
         
         $stmt = $pdo->prepare($query);
@@ -391,7 +390,7 @@ function logStaffAction($data) {
             $data['details']
         ]);
         
-        $actionId = $stmt->fetch()['id'];
+        $actionId = $pdo->lastInsertId();
         
         jsonResponse(['id' => $actionId, 'message' => 'Staff action logged successfully'], 201);
         
