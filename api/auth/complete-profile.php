@@ -1,15 +1,27 @@
 <?php
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+
 // Configure session to ensure proper sharing
 ini_set('session.cookie_httponly', 1);
 ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
 ini_set('session.cookie_samesite', 'Lax');
 ini_set('session.cookie_path', '/');
 
-session_start();
-require_once '../config_mysql.php';
-require_once '../database.php';
-
-header('Content-Type: application/json');
+try {
+    session_start();
+    require_once '../config_mysql.php';
+    require_once '../database.php';
+    
+    header('Content-Type: application/json');
+} catch (Exception $e) {
+    error_log("Initialization error: " . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['error' => 'Server initialization failed']);
+    exit;
+}
 
 // Debug logging
 error_log("Session data: " . print_r($_SESSION, true));
@@ -19,11 +31,29 @@ error_log("Cookie data: " . print_r($_COOKIE, true));
 $userId = $_SESSION['user_id'] ?? null;
 error_log("Session user_id: " . ($userId ?? 'NULL'));
 
+// Read input data once and store it
+$rawInput = file_get_contents('php://input');
+error_log("Raw input: " . $rawInput);
+
+if (empty($rawInput)) {
+    error_log("Empty input received");
+    http_response_code(400);
+    echo json_encode(['error' => 'No input data received']);
+    exit;
+}
+
+$input = json_decode($rawInput, true);
+if (json_last_error() !== JSON_ERROR_NONE) {
+    error_log("JSON decode error: " . json_last_error_msg());
+    http_response_code(400);
+    echo json_encode(['error' => 'Invalid JSON data received']);
+    exit;
+}
+
+error_log("Request body: " . print_r($input, true));
+
 // If no session, try to get user ID from request body (for frontend compatibility)
 if (!$userId) {
-    $input = json_decode(file_get_contents('php://input'), true);
-    error_log("Request body: " . print_r($input, true));
-    
     $requestUserId = $input['user_id'] ?? null;
     error_log("Request user_id: " . ($requestUserId ?? 'NULL'));
     
@@ -58,8 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-// Get profile data
-$input = json_decode(file_get_contents('php://input'), true);
+// Get profile data from the already decoded input
 $routingNumber = $input['routing_number'] ?? null;
 $phoneNumber = $input['phone_number'] ?? null;
 $discord = $input['discord'] ?? null;
