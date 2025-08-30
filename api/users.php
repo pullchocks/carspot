@@ -89,8 +89,7 @@ function getAdminUsers() {
         
         if (isset($_GET['search']) && $_GET['search'] !== '') {
             $search = '%' . $_GET['search'] . '%';
-            $whereConditions[] = "(u.name LIKE ? OR u.email LIKE ? OR u.discord LIKE ?)";
-            $params[] = $search;
+            $whereConditions[] = "(u.name LIKE ? OR u.discord LIKE ?)";
             $params[] = $search;
             $params[] = $search;
         }
@@ -109,7 +108,6 @@ function getAdminUsers() {
                 u.id,
                 u.name,
                 u.discord,
-                u.email,
                 u.phone,
                 u.phone_number,
                 u.is_dealer,
@@ -258,31 +256,30 @@ function createUser($data) {
     global $pdo;
     
     try {
-        $required = ['username', 'email', 'discord'];
+        $required = ['username', 'discord'];
         foreach ($required as $field) {
             if (empty($data[$field])) {
                 handleError("Missing required field: $field");
             }
         }
         
-        // Check if username or email already exists
-        $checkQuery = "SELECT id FROM users WHERE username = ? OR email = ?";
+        // Check if username or discord already exists
+        $checkQuery = "SELECT id FROM users WHERE username = ? OR discord = ?";
         $checkStmt = $pdo->prepare($checkQuery);
-        $checkStmt->execute([$data['username'], $data['email']]);
+        $checkStmt->execute([$data['username'], $data['discord']]);
         
         if ($checkStmt->fetch()) {
-            handleError('Username or email already exists', 409);
+            handleError('Username or discord already exists', 409);
         }
         
         $query = "
-            INSERT INTO users (username, email, discord, created_at)
-            VALUES (?, ?, ?, NOW())
+            INSERT INTO users (username, discord, created_at)
+            VALUES (?, ?, NOW())
         ";
         
         $stmt = $pdo->prepare($query);
         $stmt->execute([
             $data['username'],
-            $data['email'],
             $data['discord']
         ]);
         
@@ -304,7 +301,7 @@ function updateUser($data) {
         
         // Define updatable fields
         $updatableFields = [
-            'name', 'email', 'discord', 'phone', 'phone_number', 
+            'name', 'discord', 'phone', 'phone_number', 
             'status', 'staff_role', 'is_dealer', 'company_name'
         ];
         

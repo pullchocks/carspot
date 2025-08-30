@@ -103,41 +103,39 @@ function getUserAnalytics() {
     
     try {
         $queries = [
+            'users_by_status' => "
+                SELECT
+                    status,
+                    COUNT(*) as count
+                FROM users
+                GROUP BY status
+            ",
             'users_by_role' => "
-                SELECT 
-                    CASE 
+                SELECT
+                    CASE
                         WHEN staff_role IS NOT NULL THEN 'staff'
                         WHEN is_dealer THEN 'dealer'
                         ELSE 'private'
                     END as role,
                     COUNT(*) as count
-                FROM users 
+                FROM users
                 WHERE status = 'active'
                 GROUP BY role
             ",
-            'users_by_status' => "
-                SELECT status, COUNT(*) as count
+            'new_users_by_month' => "
+                SELECT
+                    DATE_FORMAT(created_at, '%Y-%m') as month,
+                    COUNT(*) as count
                 FROM users
-                GROUP BY status
-            ",
-            'top_users_by_activity' => "
-                SELECT 
-                    u.id,
-                    u.name,
-                    COUNT(c.id) as car_count
-                FROM users u
-                LEFT JOIN cars c ON u.id = c.user_id
-                WHERE u.status = 'active'
-                GROUP BY u.id, u.name
-                ORDER BY car_count DESC
-                LIMIT 10
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+                GROUP BY month
+                ORDER BY month DESC
             "
         ];
         
         $analytics = [];
         foreach ($queries as $key => $query) {
-            $stmt = $pdo->prepare($query);
-            $stmt->execute();
+            $stmt = $pdo->query($query);
             $analytics[$key] = $stmt->fetchAll();
         }
         
@@ -154,25 +152,30 @@ function getCarAnalytics() {
     try {
         $queries = [
             'cars_by_status' => "
-                SELECT status, COUNT(*) as count
+                SELECT
+                    status,
+                    COUNT(*) as count
                 FROM cars
                 GROUP BY status
             ",
-            'cars_by_make' => "
-                SELECT make, COUNT(*) as count
+            'cars_by_brand' => "
+                SELECT
+                    brand,
+                    COUNT(*) as count
                 FROM cars
                 WHERE status = 'active'
-                GROUP BY make
+                GROUP BY brand
                 ORDER BY count DESC
                 LIMIT 10
             ",
             'cars_by_price_range' => "
-                SELECT 
-                    CASE 
-                        WHEN price < 1000000 THEN 'Under $10,000'
-                        WHEN price < 5000000 THEN '$10,000 - $50,000'
-                        WHEN price < 10000000 THEN '$50,000 - $100,000'
-                        ELSE 'Over $100,000'
+                SELECT
+                    CASE
+                        WHEN price < 10000 THEN 'Under $10k'
+                        WHEN price < 25000 THEN '$10k - $25k'
+                        WHEN price < 50000 THEN '$25k - $50k'
+                        WHEN price < 100000 THEN '$50k - $100k'
+                        ELSE 'Over $100k'
                     END as price_range,
                     COUNT(*) as count
                 FROM cars
@@ -183,8 +186,7 @@ function getCarAnalytics() {
         
         $analytics = [];
         foreach ($queries as $key => $query) {
-            $stmt = $pdo->prepare($query);
-            $stmt->execute();
+            $stmt = $pdo->query($query);
             $analytics[$key] = $stmt->fetchAll();
         }
         
@@ -201,38 +203,28 @@ function getDealerAnalytics() {
     try {
         $queries = [
             'dealers_by_status' => "
-                SELECT status, COUNT(*) as count
+                SELECT
+                    status,
+                    COUNT(*) as count
                 FROM dealer_accounts
                 GROUP BY status
             ",
-            'top_dealers_by_sales' => "
-                SELECT 
-                    da.id,
+            'top_dealers_by_cars' => "
+                SELECT
                     da.company_name,
-                    COUNT(c.id) as car_count,
-                    COALESCE(SUM(c.price), 0) as total_value
+                    COUNT(c.id) as car_count
                 FROM dealer_accounts da
-                LEFT JOIN cars c ON da.id = c.dealer_account_id
-                WHERE da.status = 'active' AND c.status = 'active'
+                LEFT JOIN cars c ON da.owner_id = c.seller_id
+                WHERE da.status = 'active'
                 GROUP BY da.id, da.company_name
                 ORDER BY car_count DESC
                 LIMIT 10
-            ",
-            'dealer_membership_status' => "
-                SELECT 
-                    dm.status,
-                    COUNT(*) as count
-                FROM dealer_memberships dm
-                JOIN dealer_accounts da ON dm.dealer_account_id = da.id
-                WHERE da.status = 'active'
-                GROUP BY dm.status
             "
         ];
         
         $analytics = [];
         foreach ($queries as $key => $query) {
-            $stmt = $pdo->prepare($query);
-            $stmt->execute();
+            $stmt = $pdo->query($query);
             $analytics[$key] = $stmt->fetchAll();
         }
         
@@ -249,7 +241,7 @@ function getRevenueAnalytics() {
     try {
         $queries = [
             'revenue_by_month' => "
-                SELECT 
+                SELECT
                     DATE_FORMAT(created_at, '%Y-%m-01') as month,
                     SUM(amount) as revenue,
                     COUNT(*) as transactions
@@ -259,17 +251,8 @@ function getRevenueAnalytics() {
                 ORDER BY month DESC
                 LIMIT 12
             ",
-            'revenue_by_type' => "
-                SELECT 
-                    payment_type,
-                    SUM(amount) as revenue,
-                    COUNT(*) as transactions
-                FROM payment_transactions
-                WHERE status = 'completed'
-                GROUP BY payment_type
-            ",
             'daily_revenue' => "
-                SELECT 
+                SELECT
                     DATE(created_at) as date,
                     SUM(amount) as revenue
                 FROM payment_transactions
@@ -281,18 +264,16 @@ function getRevenueAnalytics() {
         
         $analytics = [];
         foreach ($queries as $key => $query) {
-            $stmt = $pdo->prepare($query);
-            $stmt->execute();
+            $stmt = $pdo->query($query);
             $analytics[$key] = $stmt->fetchAll();
         }
         
-        // Convert amounts from cents to dollars
-        foreach ($analytics as $key => $data) {
-            foreach ($data as $item) {
-                if (isset($item['revenue'])) {
-                    $item['revenue'] = $item['revenue'] / 100;
-                }
-            }
+        // Convert revenue from cents to dollars
+        foreach ($analytics['revenue_by_month'] as &$month) {
+            $month['revenue'] = $month['revenue'] / 100;
+        }
+        foreach ($analytics['daily_revenue'] as &$day) {
+            $day['revenue'] = $day['revenue'] / 100;
         }
         
         jsonResponse($analytics);
@@ -397,6 +378,17 @@ function logStaffAction($data) {
     } catch (Exception $e) {
         handleError('Failed to log staff action: ' . $e->getMessage(), 500);
     }
+}
+
+function jsonResponse($data, $statusCode = 200) {
+    http_response_code($statusCode);
+    header('Content-Type: application/json');
+    echo json_encode($data);
+    exit;
+}
+
+function handleError($message, $statusCode = 400) {
+    jsonResponse(['error' => $message], $statusCode);
 }
 ?>
 
