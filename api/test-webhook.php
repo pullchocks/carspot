@@ -1,24 +1,28 @@
 <?php
 // Add CORS headers for cross-origin requests
 header('Access-Control-Allow-Origin: https://carspot.site');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
 header('Access-Control-Allow-Credentials: true');
 
 // Handle preflight OPTIONS request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
     exit(0);
+}
+
+// Only allow POST requests
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'Method not allowed. Only POST requests are accepted.']);
+    exit;
 }
 
 header('Content-Type: application/json');
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed']);
-    exit;
-}
-
 try {
+    // Get JSON input
     $input = json_decode(file_get_contents('php://input'), true);
     
     if (!$input) {
@@ -67,7 +71,8 @@ function processTemplate($template, $data) {
     $message = $template;
     
     foreach ($data as $key => $value) {
-        $message = str_replace('{' . $key . '}', $value, $message);
+        $placeholder = '{' . $key . '}';
+        $message = str_replace($placeholder, $value, $message);
     }
     
     // Clean up any remaining placeholders
@@ -94,6 +99,7 @@ function sendDiscordWebhook($webhookUrl, $message) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 10);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -105,8 +111,8 @@ function sendDiscordWebhook($webhookUrl, $message) {
         throw new Exception('cURL error: ' . $error);
     }
     
+    // Discord returns 204 on success, anything else is an error
     if ($httpCode !== 204) {
-        // Discord returns 204 on success, anything else is an error
         $responseData = json_decode($response, true);
         $errorMessage = $responseData['message'] ?? 'Unknown Discord error';
         throw new Exception('Discord API error: ' . $errorMessage . ' (HTTP ' . $httpCode . ')');
