@@ -115,33 +115,50 @@ if (!preg_match('/^[0-9]+$/', $phoneNumber)) {
 
 try {
     $pdo = getConnection();
+    error_log("Database connection established successfully");
     
     // Check if routing number is already in use by another user
     $stmt = $pdo->prepare("SELECT id FROM users WHERE routing_number = ? AND id != ?");
     $stmt->execute([$routingNumber, $userId]);
+    error_log("Routing number check - found " . $stmt->rowCount() . " users with this routing number");
+    
     if ($stmt->rowCount() > 0) {
+        error_log("Routing number conflict detected");
         http_response_code(400);
         echo json_encode(['error' => 'Routing number is already in use by another user']);
         exit;
     }
     
+    // Log the values being updated
+    error_log("Updating user ID: $userId with routing_number: $routingNumber, phone_number: $phoneNumber, discord: " . ($discord ?? 'NULL'));
+    
     // Update user profile
     $stmt = $pdo->prepare("UPDATE users SET routing_number = ?, phone_number = ?, discord = ?, updated_at = NOW() WHERE id = ?");
-    $stmt->execute([$routingNumber, $phoneNumber, $discord, $userId]);
+    $result = $stmt->execute([$routingNumber, $phoneNumber, $discord, $userId]);
+    
+    if ($result === false) {
+        error_log("SQL execution failed: " . print_r($stmt->errorInfo(), true));
+        http_response_code(500);
+        echo json_encode(['error' => 'SQL execution failed']);
+        exit;
+    }
     
     if ($stmt->rowCount() > 0) {
+        error_log("Profile update successful - " . $stmt->rowCount() . " rows affected");
         echo json_encode([
             'success' => true,
             'message' => 'Profile completed successfully'
         ]);
     } else {
+        error_log("Profile update failed - no rows affected. User ID: $userId");
         http_response_code(500);
-        echo json_encode(['error' => 'Failed to update profile']);
+        echo json_encode(['error' => 'Failed to update profile - no rows affected']);
     }
     
 } catch (Exception $e) {
     error_log("Profile completion error: " . $e->getMessage());
+    error_log("Stack trace: " . $e->getTraceAsString());
     http_response_code(500);
-    echo json_encode(['error' => 'Profile update failed']);
+    echo json_encode(['error' => 'Profile update failed: ' . $e->getMessage()]);
 }
 ?>
