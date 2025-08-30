@@ -105,13 +105,34 @@ function getWebhookConfigs($pdo) {
         $stmt = $pdo->query("SELECT * FROM webhook_configs ORDER BY type, name");
         $configs = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        echo json_encode([
+        // Ensure all fields are safe for JSON encoding
+        $safeConfigs = [];
+        foreach ($configs as $config) {
+            $safeConfigs[] = [
+                'id' => (int)$config['id'],
+                'webhook_id' => (string)$config['webhook_id'],
+                'name' => (string)$config['name'],
+                'description' => (string)$config['description'],
+                'type' => (string)$config['type'],
+                'url' => (string)$config['url'], // This can be empty string
+                'enabled' => (bool)$config['enabled'],
+                'message_template' => (string)$config['message_template'],
+                'example_data' => $config['example_data'] ?: '{}',
+                'created_at' => (string)$config['created_at'],
+                'updated_at' => (string)$config['updated_at']
+            ];
+        }
+        
+        $response = [
             'success' => true,
-            'configs' => $configs
-        ]);
+            'configs' => $safeConfigs
+        ];
+        
+        echo json_encode($response);
         
     } catch (Exception $e) {
         error_log('Webhook API: Failed to fetch webhook configs: ' . $e->getMessage());
+        error_log('Webhook API: Stack trace: ' . $e->getTraceAsString());
         http_response_code(500);
         echo json_encode([
             'success' => false,
