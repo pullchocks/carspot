@@ -48,4 +48,13 @@ function jsonResponse($data, $statusCode = 200) {
 function handleError($message, $statusCode = 400) {
     jsonResponse(['error' => $message], $statusCode);
 }
+
+// Function to get database connection
+function getConnection() {
+    global $pdo;
+    if (!isset($pdo) || !($pdo instanceof PDO)) {
+        throw new Exception('Database connection not available');
+    }
+    return $pdo;
+}
 ?>
