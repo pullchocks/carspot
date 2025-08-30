@@ -298,18 +298,18 @@ function updateUser($data) {
     global $pdo;
     
     try {
-        if (empty($data['id'])) {
+        if (!isset($data['id'])) {
             handleError('User ID required');
         }
         
-        $fields = [];
-        $params = [];
-        
-        // Admin can update more fields
+        // Define updatable fields
         $updatableFields = [
             'name', 'email', 'discord', 'phone', 'phone_number', 
             'status', 'staff_role', 'is_dealer', 'company_name'
         ];
+        
+        $fields = [];
+        $params = [];
         
         foreach ($updatableFields as $field) {
             if (isset($data[$field])) {

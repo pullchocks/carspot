@@ -1,17 +1,6 @@
 <?php
 require_once 'config_mysql.php';
 
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: https://carspot.site');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
-header('Access-Control-Allow-Credentials: true');
-
-// Handle preflight OPTIONS request
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    exit(0);
-}
-
 // Database configuration from config_mysql.php
 $host = DB_HOST;
 $port = DB_PORT;
@@ -33,29 +22,8 @@ try {
     $pdo->exec("SET CHARACTER SET utf8mb4");
     $pdo->exec("SET character_set_connection=utf8mb4");
 } catch(PDOException $e) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Database connection failed: ' . $e->getMessage()]);
-    exit;
-}
-
-// Helper function to return JSON response
-function jsonResponse($data, $statusCode = 200) {
-    http_response_code($statusCode);
-    echo json_encode($data);
-    exit;
-}
-
-// Helper function to handle errors
-function handleError($message, $statusCode = 400) {
-    jsonResponse(['error' => $message], $statusCode);
-}
-
-// Function to get database connection
-function getConnection() {
-    global $pdo;
-    if (!isset($pdo) || !($pdo instanceof PDO)) {
-        throw new Exception('Database connection not available');
-    }
-    return $pdo;
+    // Log the error but don't output anything yet
+    error_log('Database connection failed: ' . $e->getMessage());
+    throw new Exception('Database connection failed: ' . $e->getMessage());
 }
 ?>
