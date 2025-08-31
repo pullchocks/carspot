@@ -246,7 +246,6 @@ function getTicket() {
 
 // Add a response to a ticket
 function addResponse() {
-    global $pdo;
     
     try {
         $data = json_decode(file_get_contents('php://input'), true);
@@ -305,7 +304,6 @@ function addResponse() {
 
 // Get responses for a ticket
 function getResponses() {
-    global $pdo;
     
     try {
         $ticketId = $_GET['ticket_id'] ?? null;
@@ -392,7 +390,6 @@ function getCategories() {
 
 // Get ticket tags
 function getTags() {
-    global $pdo;
     
     try {
         $query = "SELECT * FROM ticket_tags ORDER BY name";
@@ -413,7 +410,6 @@ function getTags() {
 
 // Update ticket status
 function updateStatus() {
-    global $pdo;
     
     try {
         $data = json_decode(file_get_contents('php://input'), true);
@@ -441,7 +437,6 @@ function updateStatus() {
 
 // Update ticket priority
 function updatePriority() {
-    global $pdo;
     
     try {
         $data = json_decode(file_get_contents('php://input'), true);
@@ -469,7 +464,6 @@ function updatePriority() {
 
 // Assign ticket to staff member
 function assignTicket() {
-    global $pdo;
     
     try {
         $data = json_decode(file_get_contents('php://input'), true);
@@ -502,7 +496,6 @@ function assignTicket() {
 
 // Close a ticket
 function closeTicket() {
-    global $pdo;
     
     try {
         $data = json_decode(file_get_contents('php://input'), true);
@@ -546,7 +539,6 @@ function closeTicket() {
 
 // Rate ticket satisfaction
 function rateSatisfaction() {
-    global $pdo;
     
     try {
         $data = json_decode(file_get_contents('php://input'), true);
@@ -605,7 +597,6 @@ function rateSatisfaction() {
 
 // Get tickets for staff members
 function getStaffTickets() {
-    global $pdo;
     
     try {
         $userId = $_GET['user_id'] ?? null;
@@ -697,7 +688,6 @@ function getStaffTickets() {
 // Helper functions
 
 function generateTicketNumber() {
-    global $pdo;
     
     $year = date('Y');
     $prefix = "TKT-$year-";
@@ -726,7 +716,6 @@ function generateTicketNumber() {
 }
 
 function getTicketById($id) {
-    global $pdo;
     
     $query = "
         SELECT 
@@ -755,7 +744,6 @@ function getTicketById($id) {
 }
 
 function getResponseById($id) {
-    global $pdo;
     
     $query = "
         SELECT 
@@ -773,7 +761,6 @@ function getResponseById($id) {
 }
 
 function getTicketTags($ticketId) {
-    global $pdo;
     
     $query = "
         SELECT t.*
@@ -789,7 +776,6 @@ function getTicketTags($ticketId) {
 }
 
 function isStaff($userId) {
-    global $pdo;
     
     $query = "SELECT is_staff FROM users WHERE id = ?";
     $stmt = $pdo->prepare($query);
@@ -800,7 +786,6 @@ function isStaff($userId) {
 }
 
 function updateTicketStatus($ticketId, $newStatus, $userId) {
-    global $pdo;
     
     // Get current status
     $currentQuery = "SELECT status FROM support_tickets WHERE id = ?";
@@ -822,7 +807,6 @@ function updateTicketStatus($ticketId, $newStatus, $userId) {
 }
 
 function updateTicketPriority($ticketId, $newPriority, $userId) {
-    global $pdo;
     
     // Get current priority
     $currentQuery = "SELECT priority FROM support_tickets WHERE id = ?";
@@ -844,7 +828,6 @@ function updateTicketPriority($ticketId, $newPriority, $userId) {
 }
 
 function assignTicketToStaff($ticketId, $staffId, $assignedBy) {
-    global $pdo;
     
     // Get current assignment
     $currentQuery = "SELECT assigned_staff_id FROM support_tickets WHERE id = ?";
@@ -864,7 +847,6 @@ function assignTicketToStaff($ticketId, $staffId, $assignedBy) {
 }
 
 function logStatusChange($ticketId, $oldStatus, $newStatus, $userId) {
-    global $pdo;
     
     $query = "
         INSERT INTO ticket_status_history (ticket_id, old_status, new_status, changed_by)
@@ -876,7 +858,6 @@ function logStatusChange($ticketId, $oldStatus, $newStatus, $userId) {
 }
 
 function logPriorityChange($ticketId, $oldPriority, $newPriority, $userId) {
-    global $pdo;
     
     $query = "
         INSERT INTO ticket_priority_history (ticket_id, old_priority, new_priority, changed_by, reason)
@@ -888,7 +869,6 @@ function logPriorityChange($ticketId, $oldPriority, $newPriority, $userId) {
 }
 
 function logAssignmentChange($ticketId, $oldStaffId, $newStaffId, $assignedBy) {
-    global $pdo;
     
     $query = "
         INSERT INTO ticket_assignment_history (ticket_id, old_staff_id, new_staff_id, assigned_by, reason)
