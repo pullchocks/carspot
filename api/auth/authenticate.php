@@ -84,7 +84,8 @@ try {
     }
     
     // Check if this specific character already exists in our system
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE gta_world_character_id = ?");
+    // Use the character ID as the gta_world_id since each character should have their own account
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE gta_world_id = ?");
     if (!$stmt) {
         throw new Exception('Failed to prepare user query: ' . implode(', ', $pdo->errorInfo()));
     }
@@ -116,7 +117,6 @@ try {
         $_SESSION['user_id'] = $existingUser['id'];
         $_SESSION['user_name'] = $existingUser['name'];
         $_SESSION['gta_world_id'] = $existingUser['gta_world_id'];
-        $_SESSION['gta_world_character_id'] = $existingUser['gta_world_character_id'];
         
         $userData = [
             'id' => $existingUser['id'],
@@ -131,7 +131,6 @@ try {
             'company_name' => $dealerAccount['company_name'] ?? null,
             'gta_world_id' => $existingUser['gta_world_id'],
             'gta_world_username' => $existingUser['gta_world_username'],
-            'gta_world_character_id' => $existingUser['gta_world_character_id'],
             'created_at' => $existingUser['created_at'] ?? null
         ];
         
@@ -154,12 +153,11 @@ try {
             avatar_url, 
             gta_world_id, 
             gta_world_username,
-            gta_world_character_id,
             is_dealer, 
             is_staff, 
             created_at, 
             last_login
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, false, false, NOW(), NOW())
+        ) VALUES (?, ?, ?, ?, ?, ?, false, false, NOW(), NOW())
     ");
     
     if (!$insertStmt) {
@@ -171,9 +169,8 @@ try {
         $emailValue,
         $discordValue,
         $avatarUrl,
-        $gtaWorldId,
-        $gtaWorldUsername,
-        $characterId
+        $characterId,  // Use character ID as gta_world_id
+        $gtaWorldUsername
     ]);
     
     $userId = $pdo->lastInsertId();
@@ -190,8 +187,7 @@ try {
     // Set session variables for new user
     $_SESSION['user_id'] = $userId;
     $_SESSION['user_name'] = $characterName;
-    $_SESSION['gta_world_id'] = $gtaWorldId;
-    $_SESSION['gta_world_character_id'] = $characterId;
+    $_SESSION['gta_world_id'] = $characterId;  // Store character ID as gta_world_id
     
     // Return the new user data
     $userData = [
@@ -205,9 +201,8 @@ try {
         'is_dealer' => false,
         'staff_role' => null,
         'company_name' => null,
-        'gta_world_id' => $gtaWorldId,
+        'gta_world_id' => $characterId,  // Store character ID as gta_world_id
         'gta_world_username' => $gtaWorldUsername,
-        'gta_world_character_id' => $characterId,
         'created_at' => date('Y-m-d H:i:s')
     ];
     
