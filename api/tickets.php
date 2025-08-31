@@ -239,6 +239,68 @@ function getTicket() {
     }
 }
 
+// Update a ticket
+function updateTicket() {
+    try {
+        $data = json_decode(file_get_contents('php://input'), true);
+        
+        if (empty($data['ticket_id']) || empty($data['user_id'])) {
+            handleError('Missing required fields', 400);
+        }
+        
+        // Check if user is staff or ticket owner
+        $ticket = getTicketById($data['ticket_id']);
+        if (!$ticket) {
+            handleError('Ticket not found', 404);
+        }
+        
+        if ($ticket['user_id'] != $data['user_id'] && !isStaff($data['user_id'])) {
+            handleError('Unauthorized', 403);
+        }
+        
+        // Update fields
+        $updateFields = [];
+        $params = [];
+        
+        if (isset($data['subject'])) {
+            $updateFields[] = "subject = ?";
+            $params[] = $data['subject'];
+        }
+        
+        if (isset($data['description'])) {
+            $updateFields[] = "description = ?";
+            $params[] = $data['description'];
+        }
+        
+        if (isset($data['priority']) && isStaff($data['user_id'])) {
+            $updateFields[] = "priority = ?";
+            $params[] = $data['priority'];
+        }
+        
+        if (empty($updateFields)) {
+            handleError('No fields to update', 400);
+        }
+        
+        $params[] = $data['ticket_id'];
+        
+        $query = "UPDATE support_tickets SET " . implode(", ", $updateFields) . " WHERE id = ?";
+        $stmt = $pdo->prepare($query);
+        $stmt->execute($params);
+        
+        // Get updated ticket
+        $updatedTicket = getTicketById($data['ticket_id']);
+        
+        jsonResponse([
+            'success' => true,
+            'message' => 'Ticket updated successfully',
+            'ticket' => $updatedTicket
+        ]);
+        
+    } catch (Exception $e) {
+        handleError('Failed to update ticket: ' . $e->getMessage(), 500);
+    }
+}
+
 // Add a response to a ticket
 function addResponse() {
     
@@ -379,6 +441,44 @@ function getCategories() {
 }
 
 // Tags system removed - using only categories
+
+// Add attachment to ticket
+function addAttachment() {
+    try {
+        $data = json_decode(file_get_contents('php://input'), true);
+        
+        if (empty($data['ticket_id']) || empty($data['file_name']) || empty($data['file_url'])) {
+            handleError('Missing required fields', 400);
+        }
+        
+        $query = "
+            INSERT INTO ticket_attachments (ticket_id, response_id, file_name, file_url, file_type, file_size, uploaded_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ";
+        
+        $stmt = $pdo->prepare($query);
+        $stmt->execute([
+            $data['ticket_id'],
+            $data['response_id'] ?? null,
+            $data['file_name'],
+            $data['file_url'],
+            $data['file_type'] ?? null,
+            $data['file_size'] ?? null,
+            $data['user_id'] ?? null
+        ]);
+        
+        $attachmentId = $pdo->lastInsertId();
+        
+        jsonResponse([
+            'success' => true,
+            'message' => 'Attachment added successfully',
+            'attachment_id' => $attachmentId
+        ]);
+        
+    } catch (Exception $e) {
+        handleError('Failed to add attachment: ' . $e->getMessage(), 500);
+    }
+}
 
 // Update ticket status
 function updateStatus() {
