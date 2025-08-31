@@ -196,7 +196,8 @@ try {
     
     // Trigger webhook for new user registration
     try {
-        $webhookData = [
+        // Trigger the existing webhook system
+        $webhookPayload = json_encode([
             'webhook_id' => 'new-user',
             'data' => [
                 'username' => $characterName,
@@ -204,22 +205,9 @@ try {
                 'gta_world_username' => $gtaWorldUsername,
                 'user_id' => $userId
             ]
-        ];
-        
-        // Queue webhook event in database
-        $webhookStmt = $pdo->prepare("
-            INSERT INTO webhook_events (webhook_id, event_type, event_data, status) 
-            VALUES (?, 'new-user', ?, 'pending')
-        ");
-        $webhookStmt->execute(['new-user', json_encode($webhookData['data'])]);
-        
-        // Also trigger webhook immediately via API
-        $webhookPayload = json_encode([
-            'webhook_id' => 'new-user',
-            'data' => $webhookData['data']
         ]);
         
-        // Make internal API call to trigger webhook
+        // Call the existing webhook API
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, 'https://carspot.site/api/webhooks.php?action=trigger');
         curl_setopt($ch, CURLOPT_POST, true);
@@ -227,7 +215,7 @@ try {
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // For local development
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         
         $webhookResponse = curl_exec($ch);
         $webhookHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -236,7 +224,7 @@ try {
         if ($webhookHttpCode === 200) {
             error_log("Webhook triggered successfully for new user: $characterName (ID: $userId)");
         } else {
-            error_log("Webhook trigger failed for new user ID $userId: HTTP $webhookHttpCode - $webhookResponse");
+            error_log("Webhook trigger failed for new user ID $userId: HTTP $webhookHttpCode");
         }
         
     } catch (Exception $webhookError) {
