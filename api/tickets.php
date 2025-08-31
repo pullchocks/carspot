@@ -24,25 +24,50 @@ $action = $_GET['action'] ?? '';
 
 if ($action === 'get_categories') {
     try {
-        error_log('Tickets API: Getting categories...');
+        // Output debug info directly to browser console
+        echo "<!-- DEBUG: Starting get_categories -->\n";
         
-        $query = "SELECT * FROM ticket_categories WHERE is_active = 1 ORDER BY sort_order, name";
-        error_log('Tickets API: Query: ' . $query);
+        // First, let's see what columns exist in the table
+        $describeQuery = "DESCRIBE ticket_categories";
+        $describeStmt = $pdo->prepare($describeQuery);
+        $describeStmt->execute();
+        $columns = $describeStmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        echo "<!-- DEBUG: Table columns: " . json_encode($columns) . " -->\n";
+        
+        // Now get the actual categories with all columns
+        $query = "SELECT * FROM ticket_categories ORDER BY sort_order, name";
+        echo "<!-- DEBUG: Query: " . $query . " -->\n";
         
         $stmt = $pdo->prepare($query);
         $stmt->execute();
-        $categories = $stmt->fetchAll();
+        $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        error_log('Tickets API: Found ' . count($categories) . ' categories');
-        error_log('Tickets API: Categories: ' . json_encode($categories));
+        echo "<!-- DEBUG: Found " . count($categories) . " categories -->\n";
+        echo "<!-- DEBUG: Raw categories: " . json_encode($categories) . " -->\n";
+        
+        // Check if we have the expected columns
+        if (count($categories) > 0) {
+            $firstCategory = $categories[0];
+            echo "<!-- DEBUG: First category keys: " . json_encode(array_keys($firstCategory)) . " -->\n";
+            echo "<!-- DEBUG: First category data: " . json_encode($firstCategory) . " -->\n";
+        }
+        
+        // Set proper headers for JSON response
+        header('Content-Type: application/json');
         
         echo json_encode([
             'success' => true,
-            'categories' => $categories
+            'categories' => $categories,
+            'debug' => [
+                'count' => count($categories),
+                'columns' => $columns,
+                'first_category' => $categories[0] ?? null
+            ]
         ]);
         
     } catch (Exception $e) {
-        error_log('Tickets API: Error getting categories: ' . $e->getMessage());
+        echo "<!-- DEBUG: Error: " . $e->getMessage() . " -->\n";
         http_response_code(500);
         echo json_encode([
             'success' => false,
