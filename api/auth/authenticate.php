@@ -145,23 +145,9 @@ try {
         exit;
     }
     
-    // If no user found by character ID, check if there's a user with the same GTA World account ID
-    // This would indicate they're trying to log in with a different character from the same account
-    error_log("Checking for existing user with GTA World account ID: $gtaWorldId");
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE gta_world_id = ?");
-    if (!$stmt) {
-        throw new Exception('Failed to prepare GTA World user query: ' . implode(', ', $pdo->errorInfo()));
-    }
-    $stmt->execute([$gtaWorldId]);
-    $existingGtaWorldUser = $stmt->fetch();
-    
-    if ($existingGtaWorldUser) {
-        // User exists with this GTA World account, but different character
-        // We should create a new character account for them
-        error_log("User with GTA World ID $gtaWorldId exists, creating new character account for character ID $characterId");
-    } else {
-        error_log("No existing user found with GTA World account ID: $gtaWorldId");
-    }
+    // If no user found by character ID, we can proceed to create a new character account
+    // Each character gets their own account with their own gta_world_id
+    error_log("No existing character found, proceeding to create new character account");
 
     // User doesn't exist, create new user
     $characterName = $selectedCharacter ? $selectedCharacter['name'] : $gtaWorldUsername;
