@@ -204,10 +204,21 @@ try {
         if ($webhook && !empty($webhook['url'])) {
             // Format message using template
             $message = $webhook['message_template'];
+            
+            // Debug logging for placeholder replacement
+            error_log("Original template: " . $message);
+            error_log("Character name: " . $characterName);
+            error_log("Character ID: " . $characterId);
+            error_log("GTA World username: " . $gtaWorldUsername);
+            error_log("User ID: " . $userId);
+            
+            // Replace placeholders with actual values
             $message = str_replace('{username}', $characterName, $message);
             $message = str_replace('{gta_world_id}', $characterId, $message);
             $message = str_replace('{gta_world_username}', $gtaWorldUsername, $message);
             $message = str_replace('{user_id}', $userId, $message);
+            
+            error_log("Final formatted message: " . $message);
             
             // Send directly to Discord
             $payload = ['content' => $message];
