@@ -38,6 +38,8 @@ switch ($_SERVER['REQUEST_METHOD']) {
     case 'POST':
         if ($action === 'save_config') {
             saveWebhookConfig($pdo);
+        } elseif ($action === 'trigger') {
+            triggerWebhook($pdo);
         } else {
             http_response_code(400);
             echo json_encode(['error' => 'Invalid action']);
@@ -94,8 +96,8 @@ function getWebhookConfigs($pdo) {
             ('new-user', 'New User Registration', 'Triggered when a new user joins CarSpot', 'private', '', TRUE, '👋 **{username}** has joined CarSpot!', '{\"username\": \"NewUser123\"}'),
             ('dealer-application', 'Dealer Application', 'Triggered when someone applies to become a dealer', 'private', '', TRUE, '🏢 **{username}** has applied to become a dealer!\n[Review Application]({application_url})', '{\"username\": \"AspiringDealer\", \"application_url\": \"https://carspot.site/admin/dealer-applications/123\"}'),
             ('dealer-payment', 'Dealer Payment', 'Triggered when a dealer pays their membership dues', 'private', '', TRUE, '💳 **{username}** has paid their dealer membership dues!\n**Amount:** ${amount}\n**Plan:** {plan}', '{\"username\": \"PremiumDealer\", \"amount\": \"$99.99\", \"plan\": \"Premium Monthly\"}'),
-            ('tickets', 'Support Tickets', 'Triggered for ticket updates (creation, assignment, resolution)', 'system', '', TRUE, '🎫 **{action}**\n**User:** {username}\n**Subject:** {subject}\n[View Ticket]({ticket_url})', '{\"action\": \"New ticket submitted\", \"username\": \"User123\", \"subject\": \"Payment issue\", \"ticket_url\": \"https://carspot.site/admin/tickets/123\"}'),
-            ('reports', 'System Reports', 'Triggered for report updates (creation, investigation, resolution)', 'system', '', TRUE, '🚨 **{action}**\n**Reporter:** {username}\n**Type:** {report_type}\n[View Report]({report_url})', '{\"action\": \"New report submitted\", \"username\": \"Reporter456\", \"report_type\": \"Inappropriate content\", \"report_url\": \"https://carspot.site/admin/reports/456\"}')
+            ('tickets', 'Support Tickets', 'Triggered for ticket updates (creation, assignment, resolution)', 'system', '', TRUE, '🎫 **{action}**\n**User:** {username}\n**Subject:** {subject}\n**Status:** {status}\n[View Ticket]({ticket_url})', '{\"action\": \"New ticket submitted\", \"username\": \"User123\", \"subject\": \"Payment issue\", \"status\": \"Open\", \"ticket_url\": \"https://carspot.site/admin/tickets/123\"}'),
+            ('reports', 'System Reports', 'Triggered for report updates (creation, investigation, resolution)', 'system', '', TRUE, '🚨 **{action}**\n**Reporter:** {username}\n**Type:** {report_type}\n**Content:** {content}\n[View Report]({report_url})', '{\"action\": \"New report submitted\", \"username\": \"Reporter456\", \"report_type\": \"Inappropriate content\", \"content\": \"User posted offensive content\", \"report_url\": \"https://carspot.site/admin/reports/456\"}')
             ";
             
             $pdo->exec($insertSQL);
@@ -152,7 +154,7 @@ function saveWebhookConfig($pdo) {
         $webhookId = $input['webhook_id'] ?? '';
         $url = $input['url'] ?? '';
         $enabled = $input['enabled'] ?? true;
-        $messageTemplate = $input['message_template'] ?? '';
+        $messageTemplate = $input['message_template'] ?? null; // Don't default to empty string
         
         if (empty($webhookId)) {
             throw new Exception('Webhook ID is required');
@@ -163,11 +165,31 @@ function saveWebhookConfig($pdo) {
         $stmt->execute([$webhookId]);
         
         if ($stmt->fetch()) {
-            // Update existing config
-            $stmt = $pdo->prepare("UPDATE webhook_configs SET url = ?, enabled = ?, message_template = ?, updated_at = CURRENT_TIMESTAMP WHERE webhook_id = ?");
-            $stmt->execute([$url, $enabled, $messageTemplate, $webhookId]);
+            // Update existing config - only update message_template if provided
+            if ($messageTemplate !== null) {
+                $stmt = $pdo->prepare("UPDATE webhook_configs SET url = ?, enabled = ?, message_template = ?, updated_at = CURRENT_TIMESTAMP WHERE webhook_id = ?");
+                $stmt->execute([$url, $enabled, $messageTemplate, $webhookId]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE webhook_configs SET url = ?, enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE webhook_id = ?");
+                $stmt->execute([$url, $enabled, $webhookId]);
+            }
         } else {
-            // Insert new config
+            // Insert new config - use default template if none provided
+            if ($messageTemplate === null) {
+                // Get default template from the default configs
+                $defaultTemplates = [
+                    'new-postings' => '🚗 **{username}** posted a new vehicle!\n**{make} {model}** - ${price}\n[View Posting]({posting_url})',
+                    'new-featured' => '⭐ **{username}** has a new featured vehicle!\n**{make} {model}** - ${price}\n[View Featured Posting]({posting_url})',
+                    'price-alert' => '💰 **Price Update** for {make} {model}\n**Old Price:** ${old_price} → **New Price:** ${new_price}\n[View Posting]({posting_url})',
+                    'sold' => '✅ **{make} {model}** has been sold!\n**Seller:** {username}\n**Final Price:** ${price}',
+                    'new-user' => '👋 **{username}** has joined CarSpot!',
+                    'dealer-application' => '🏢 **{username}** has applied to become a dealer!\n[Review Application]({application_url})',
+                    'dealer-payment' => '💳 **{username}** has paid their dealer membership dues!\n**Amount:** ${amount}\n**Plan:** {plan}',
+                    'tickets' => '🎫 **{action}**\n**User:** {username}\n**Subject:** {subject}\n**Status:** {status}\n[View Ticket]({ticket_url})',
+                    'reports' => '🚨 **{action}**\n**Reporter:** {username}\n**Type:** {report_type}\n**Content:** {content}\n[View Report]({report_url})'
+                ];
+                $messageTemplate = $defaultTemplates[$webhookId] ?? '';
+            }
             $stmt = $pdo->prepare("INSERT INTO webhook_configs (webhook_id, url, enabled, message_template) VALUES (?, ?, ?, ?)");
             $stmt->execute([$webhookId, $url, $enabled, $messageTemplate]);
         }
@@ -212,6 +234,10 @@ function updateWebhookConfig($pdo) {
         
         foreach ($updates as $field => $value) {
             if (in_array($field, ['url', 'enabled', 'message_template'])) {
+                // Don't allow empty message templates to overwrite existing ones
+                if ($field === 'message_template' && empty($value)) {
+                    continue;
+                }
                 $setClause[] = "$field = ?";
                 $params[] = $value;
             }
@@ -241,5 +267,95 @@ function updateWebhookConfig($pdo) {
             'error' => 'Failed to update webhook config: ' . $e->getMessage()
         ]);
     }
+}
+
+function triggerWebhook($pdo) {
+    try {
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        if (!$input) {
+            throw new Exception('Invalid JSON input');
+        }
+        
+        $webhookId = $input['webhook_id'] ?? '';
+        $data = $input['data'] ?? [];
+        
+        if (empty($webhookId)) {
+            throw new Exception('Webhook ID is required');
+        }
+        
+        // Get webhook configuration
+        $stmt = $pdo->prepare("SELECT * FROM webhook_configs WHERE webhook_id = ? AND enabled = 1");
+        $stmt->execute([$webhookId]);
+        $webhook = $stmt->fetch();
+        
+        if (!$webhook) {
+            throw new Exception('Webhook not found or disabled');
+        }
+        
+        // Format message using template
+        $message = formatWebhookMessage($webhook['message_template'], $data);
+        
+        // Send to Discord webhook if URL is set
+        if (!empty($webhook['url'])) {
+            $discordResponse = sendDiscordWebhook($webhook['url'], $message);
+            
+            echo json_encode([
+                'success' => true,
+                'message' => 'Webhook triggered successfully',
+                'discord_response' => $discordResponse
+            ]);
+        } else {
+            echo json_encode([
+                'success' => true,
+                'message' => 'Webhook triggered (no Discord URL configured)',
+                'formatted_message' => $message
+            ]);
+        }
+        
+    } catch (Exception $e) {
+        error_log('Webhook API: Failed to trigger webhook: ' . $e->getMessage());
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Failed to trigger webhook: ' . $e->getMessage()
+        ]);
+    }
+}
+
+function formatWebhookMessage($template, $data) {
+    $message = $template;
+    
+    // Replace placeholders with actual data
+    foreach ($data as $key => $value) {
+        $message = str_replace('{' . $key . '}', $value, $message);
+    }
+    
+    return $message;
+}
+
+function sendDiscordWebhook($url, $message) {
+    $payload = [
+        'content' => $message
+    ];
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    return [
+        'http_code' => $httpCode,
+        'response' => $response
+    ];
 }
 ?>
