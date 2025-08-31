@@ -45,9 +45,7 @@ switch ($action) {
     case 'get_categories':
         getCategories();
         break;
-    case 'get_tags':
-        getTags();
-        break;
+    // Tags system removed - using only categories
     case 'add_attachment':
         addAttachment();
         break;
@@ -197,10 +195,7 @@ function getTickets() {
         $stmt->execute($params);
         $tickets = $stmt->fetchAll();
         
-        // Get tags for each ticket
-        foreach ($tickets as &$ticket) {
-            $ticket['tags'] = getTicketTags($ticket['id']);
-        }
+        // Tags system removed - using only categories
         
         jsonResponse([
             'success' => true,
@@ -328,7 +323,7 @@ function getResponses() {
                 tr.*,
                 u.name as user_name,
                 u.avatar_url as user_avatar,
-                u.is_staff
+                u.staff_role
             FROM ticket_responses tr
             JOIN users u ON tr.user_id = u.id
             WHERE tr.ticket_id = ?
@@ -339,12 +334,7 @@ function getResponses() {
         $stmt->execute([$ticketId]);
         $responses = $stmt->fetchAll();
         
-        // Filter internal notes for non-staff users
-        if (!isStaff($userId)) {
-            $responses = array_filter($responses, function($response) {
-                return !$response['is_internal'];
-            });
-        }
+        // Internal notes filtering removed - using only categories
         
         jsonResponse([
             'success' => true,
@@ -388,25 +378,7 @@ function getCategories() {
     }
 }
 
-// Get ticket tags
-function getTags() {
-    
-    try {
-        $query = "SELECT * FROM ticket_tags ORDER BY name";
-        
-        $stmt = $pdo->prepare($query);
-        $stmt->execute();
-        $tags = $stmt->fetchAll();
-        
-        jsonResponse([
-            'success' => true,
-            'tags' => $tags
-        ]);
-        
-    } catch (Exception $e) {
-        handleError('Failed to get tags: ' . $e->getMessage(), 500);
-    }
-}
+// Tags system removed - using only categories
 
 // Update ticket status
 function updateStatus() {
@@ -664,10 +636,7 @@ function getStaffTickets() {
         $stmt->execute($params);
         $tickets = $stmt->fetchAll();
         
-        // Get tags for each ticket
-        foreach ($tickets as &$ticket) {
-            $ticket['tags'] = getTicketTags($ticket['id']);
-        }
+        // Tags system removed - using only categories
         
         jsonResponse([
             'success' => true,
@@ -736,9 +705,7 @@ function getTicketById($id) {
     $stmt->execute([$id]);
     $ticket = $stmt->fetch();
     
-    if ($ticket) {
-        $ticket['tags'] = getTicketTags($id);
-    }
+    // Tags system removed - using only categories
     
     return $ticket;
 }
@@ -760,29 +727,16 @@ function getResponseById($id) {
     return $stmt->fetch();
 }
 
-function getTicketTags($ticketId) {
-    
-    $query = "
-        SELECT t.*
-        FROM ticket_tags t
-        JOIN ticket_tag_relationships ttr ON t.id = ttr.tag_id
-        WHERE ttr.ticket_id = ?
-        ORDER BY t.name
-    ";
-    
-    $stmt = $pdo->prepare($query);
-    $stmt->execute([$ticketId]);
-    return $stmt->fetchAll();
-}
+// Tags system removed - using only categories
 
 function isStaff($userId) {
     
-    $query = "SELECT is_staff FROM users WHERE id = ?";
+    $query = "SELECT staff_role FROM users WHERE id = ?";
     $stmt = $pdo->prepare($query);
     $stmt->execute([$userId]);
     $user = $stmt->fetch();
     
-    return $user && $user['is_staff'];
+    return $user && !empty($user['staff_role']);
 }
 
 function updateTicketStatus($ticketId, $newStatus, $userId) {
