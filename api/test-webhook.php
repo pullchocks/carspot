@@ -38,12 +38,43 @@ try {
         throw new Exception('Webhook URL is required');
     }
     
+    // If template is empty, get the default template from database
     if (empty($template)) {
-        throw new Exception('Message template is required');
+        require_once 'database.php';
+        try {
+            $pdo = getDatabaseConnection();
+            $stmt = $pdo->prepare("SELECT message_template FROM webhook_configs WHERE webhook_id = ?");
+            $stmt->execute([$webhookId]);
+            $result = $stmt->fetch();
+            
+            if ($result && !empty($result['message_template'])) {
+                $template = $result['message_template'];
+            } else {
+                // Fallback to hardcoded defaults if database lookup fails
+                $defaultTemplates = [
+                    'new-postings' => '🚗 **{username}** posted a new vehicle!\n**{make} {model}** - ${price}\n[View Posting]({posting_url})',
+                    'new-featured' => '⭐ **{username}** has a new featured vehicle!\n**{make} {model}** - ${price}\n[View Featured Posting]({posting_url})',
+                    'price-alert' => '💰 **Price Update** for {make} {model}\n**Old Price:** ${old_price} → **New Price:** ${new_price}\n[View Posting]({posting_url})',
+                    'sold' => '✅ **{make} {model}** has been sold!\n**Seller:** {username}\n**Final Price:** ${price}',
+                    'new-user' => '👋 **{username}** has joined CarSpot!',
+                    'dealer-application' => '🏢 **{username}** has applied to become a dealer!\n[Review Application]({application_url})',
+                    'dealer-payment' => '💳 **{username}** has paid their dealer membership dues!\n**Amount:** ${amount}\n**Plan:** {plan}',
+                    'tickets' => '🎫 **{action}**\n**User:** {username}\n**Subject:** {subject}\n**Status:** {status}\n[View Ticket]({ticket_url})',
+                    'reports' => '🚨 **{action}**\n**Reporter:** {username}\n**Type:** {report_type}\n**Content:** {content}\n[View Report]({report_url})'
+                ];
+                $template = $defaultTemplates[$webhookId] ?? '**Test Message**\nThis is a test webhook for {webhook_id}';
+            }
+        } catch (Exception $e) {
+            // If database lookup fails, use a basic template
+            $template = '**Test Message**\nThis is a test webhook for ' . $webhookId;
+        }
     }
     
     // Process the message template with the provided data
     $message = processTemplate($template, $data);
+    
+    // Log for debugging
+    error_log("Webhook test - ID: $webhookId, Template: " . substr($template, 0, 100) . "...");
     
     // Send to Discord webhook
     $discordResponse = sendDiscordWebhook($webhookUrl, $message);
