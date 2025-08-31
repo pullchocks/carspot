@@ -9,6 +9,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once 'config_mysql.php';
+require_once 'database_mysql.php';
+
+try {
+    $pdo = getConnection();
+} catch (Exception $e) {
+    error_log('Tickets API: Database connection failed: ' . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['error' => 'Database connection failed: ' . $e->getMessage()]);
+    exit;
+}
 
 // Handle different actions
 $action = $_GET['action'] ?? '';
@@ -65,7 +75,6 @@ switch ($action) {
 
 // Create a new support ticket
 function createTicket() {
-    global $pdo;
     
     try {
         $data = json_decode(file_get_contents('php://input'), true);
@@ -114,7 +123,6 @@ function createTicket() {
 
 // Get tickets for a user
 function getTickets() {
-    global $pdo;
     
     try {
         $userId = $_GET['user_id'] ?? null;
@@ -212,7 +220,6 @@ function getTickets() {
 
 // Get a specific ticket
 function getTicket() {
-    global $pdo;
     
     try {
         $ticketId = $_GET['id'] ?? null;
@@ -353,18 +360,24 @@ function getResponses() {
 
 // Get ticket categories
 function getCategories() {
-    global $pdo;
     
     try {
+        error_log('Tickets API: Getting categories...');
+        
         $query = "
             SELECT * FROM ticket_categories 
             WHERE is_active = 1 
             ORDER BY sort_order, name
         ";
         
+        error_log('Tickets API: Query: ' . $query);
+        
         $stmt = $pdo->prepare($query);
         $stmt->execute();
         $categories = $stmt->fetchAll();
+        
+        error_log('Tickets API: Found ' . count($categories) . ' categories');
+        error_log('Tickets API: Categories: ' . json_encode($categories));
         
         jsonResponse([
             'success' => true,
@@ -372,6 +385,7 @@ function getCategories() {
         ]);
         
     } catch (Exception $e) {
+        error_log('Tickets API: Error getting categories: ' . $e->getMessage());
         handleError('Failed to get categories: ' . $e->getMessage(), 500);
     }
 }
