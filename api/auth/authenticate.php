@@ -75,12 +75,20 @@ try {
     $email = $gtaWorldUser['email'] ?? null;
     $avatarUrl = $gtaWorldUser['avatar_url'] ?? null;
     
-    // Check if user already exists in our system
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE gta_world_id = ?");
+    // Get the character ID from the selected character
+    $characterId = $selectedCharacter ? $selectedCharacter['id'] : null;
+    if (!$characterId) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Character selection is required']);
+        exit;
+    }
+    
+    // Check if this specific character already exists in our system
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE gta_world_character_id = ?");
     if (!$stmt) {
         throw new Exception('Failed to prepare user query: ' . implode(', ', $pdo->errorInfo()));
     }
-    $stmt->execute([$gtaWorldId]);
+    $stmt->execute([$characterId]);
     $existingUser = $stmt->fetch();
 
     if ($existingUser) {
@@ -108,6 +116,7 @@ try {
         $_SESSION['user_id'] = $existingUser['id'];
         $_SESSION['user_name'] = $existingUser['name'];
         $_SESSION['gta_world_id'] = $existingUser['gta_world_id'];
+        $_SESSION['gta_world_character_id'] = $existingUser['gta_world_character_id'];
         
         $userData = [
             'id' => $existingUser['id'],
@@ -122,6 +131,7 @@ try {
             'company_name' => $dealerAccount['company_name'] ?? null,
             'gta_world_id' => $existingUser['gta_world_id'],
             'gta_world_username' => $existingUser['gta_world_username'],
+            'gta_world_character_id' => $existingUser['gta_world_character_id'],
             'created_at' => $existingUser['created_at'] ?? null
         ];
         
@@ -143,12 +153,13 @@ try {
             discord, 
             avatar_url, 
             gta_world_id, 
-            gta_world_username, 
+            gta_world_username,
+            gta_world_character_id,
             is_dealer, 
             is_staff, 
             created_at, 
             last_login
-        ) VALUES (?, ?, ?, ?, ?, ?, false, false, NOW(), NOW())
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, false, false, NOW(), NOW())
     ");
     
     if (!$insertStmt) {
@@ -161,7 +172,8 @@ try {
         $discordValue,
         $avatarUrl,
         $gtaWorldId,
-        $gtaWorldUsername
+        $gtaWorldUsername,
+        $characterId
     ]);
     
     $userId = $pdo->lastInsertId();
@@ -179,6 +191,7 @@ try {
     $_SESSION['user_id'] = $userId;
     $_SESSION['user_name'] = $characterName;
     $_SESSION['gta_world_id'] = $gtaWorldId;
+    $_SESSION['gta_world_character_id'] = $characterId;
     
     // Return the new user data
     $userData = [
@@ -194,6 +207,7 @@ try {
         'company_name' => null,
         'gta_world_id' => $gtaWorldId,
         'gta_world_username' => $gtaWorldUsername,
+        'gta_world_character_id' => $characterId,
         'created_at' => date('Y-m-d H:i:s')
     ];
     
