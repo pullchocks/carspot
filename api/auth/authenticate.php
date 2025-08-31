@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once '../config_mysql.php';
-require_once '../database.php';
+require_once '../database_mysql.php';
 
 // Ensure database constants are available
 if (!defined('DB_HOST') || !defined('DB_USER') || !defined('DB_PASSWORD') || !defined('DB_NAME') || !defined('DB_PORT')) {

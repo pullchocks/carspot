@@ -1,7 +1,7 @@
 <?php
 session_start();
 require_once '../config_mysql.php';
-require_once '../database.php';
+require_once '../database_mysql.php';
 
 header('Content-Type: application/json');
 
