@@ -155,7 +155,7 @@ function saveWebhookConfig($pdo) {
         $webhookId = $input['webhook_id'] ?? '';
         $url = $input['url'] ?? '';
         $enabled = $input['enabled'] ?? true;
-        $messageTemplate = $input['message_template'] ?? null; // Don't default to empty string
+        $messageTemplate = $input['message_template'] ?? null; // null means preserve existing
         
         if (empty($webhookId)) {
             throw new Exception('Webhook ID is required');
@@ -166,11 +166,12 @@ function saveWebhookConfig($pdo) {
         $stmt->execute([$webhookId]);
         
         if ($stmt->fetch()) {
-            // Update existing config - only update message_template if provided
+            // Update existing config - preserve existing message_template if not provided
             if ($messageTemplate !== null) {
                 $stmt = $pdo->prepare("UPDATE webhook_configs SET url = ?, enabled = ?, message_template = ?, updated_at = CURRENT_TIMESTAMP WHERE webhook_id = ?");
                 $stmt->execute([$url, $enabled, $messageTemplate, $webhookId]);
             } else {
+                // Don't update message_template, preserve existing one
                 $stmt = $pdo->prepare("UPDATE webhook_configs SET url = ?, enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE webhook_id = ?");
                 $stmt->execute([$url, $enabled, $webhookId]);
             }
