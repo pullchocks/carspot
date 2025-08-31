@@ -32,17 +32,21 @@ if (!$code) {
 }
 
 try {
-    // Exchange authorization code for access token
-    $ch = curl_init($tokenUrl);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+    // Log the request parameters for debugging
+    $requestParams = [
         'grant_type' => 'authorization_code',
         'code' => $code,
         'redirect_uri' => $redirectUri,
         'client_id' => $clientId,
         'client_secret' => $clientSecret
-    ]));
+    ];
+    error_log("GTA World token exchange request params: " . json_encode($requestParams));
+    
+    // Exchange authorization code for access token
+    $ch = curl_init($tokenUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($requestParams));
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Content-Type: application/x-www-form-urlencoded'
     ]);
@@ -54,7 +58,22 @@ try {
     if ($httpCode !== 200) {
         error_log("GTA World token exchange failed: HTTP $httpCode, Response: $response");
         http_response_code(400);
-        echo json_encode(['error' => 'Failed to exchange authorization code']);
+        
+        // Try to parse the error response from GTA World
+        $errorData = json_decode($response, true);
+        if ($errorData && isset($errorData['error'])) {
+            echo json_encode([
+                'error' => 'GTA World OAuth error: ' . $errorData['error'],
+                'details' => $errorData['error_description'] ?? 'No additional details provided',
+                'http_code' => $httpCode
+            ]);
+        } else {
+            echo json_encode([
+                'error' => 'Failed to exchange authorization code',
+                'details' => 'HTTP ' . $httpCode . ': ' . $response,
+                'http_code' => $httpCode
+            ]);
+        }
         exit;
     }
 
