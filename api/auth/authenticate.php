@@ -72,7 +72,6 @@ try {
     $gtaWorldId = $gtaWorldUser['id'];
     $gtaWorldUsername = $gtaWorldUser['username'] ?? '';
     $discord = $gtaWorldUser['discord'] ?? null;
-    $email = $gtaWorldUser['email'] ?? null;
     $avatarUrl = $gtaWorldUser['avatar_url'] ?? null;
     
     // Get the character ID from the selected character
@@ -121,7 +120,6 @@ try {
         $userData = [
             'id' => $existingUser['id'],
             'name' => $existingUser['name'],
-            'email' => $existingUser['email'],
             'discord' => $existingUser['discord'],
             'phone_number' => $existingUser['phone_number'] ?? null,
             'routing_number' => $existingUser['routing_number'] ?? null,
@@ -143,21 +141,19 @@ try {
     
     // Handle nullable fields - Discord might not be available for GTA World users
     $discordValue = $discord ?: 'gta_world_' . $gtaWorldId; // Generate unique Discord-like identifier
-    $emailValue = $email ?: 'gta_world_' . $gtaWorldId . '@carspot.site'; // Generate unique email if none provided
     
     $insertStmt = $pdo->prepare("
         INSERT INTO users (
             name, 
-            email, 
             discord, 
             avatar_url, 
             gta_world_id, 
             gta_world_username,
             is_dealer, 
-            is_staff, 
+            staff_role,
             created_at, 
             last_login
-        ) VALUES (?, ?, ?, ?, ?, ?, false, false, NOW(), NOW())
+        ) VALUES (?, ?, ?, ?, ?, false, NULL, NOW(), NOW())
     ");
     
     if (!$insertStmt) {
@@ -166,7 +162,6 @@ try {
     
     $insertStmt->execute([
         $characterName,
-        $emailValue,
         $discordValue,
         $avatarUrl,
         $characterId,  // Use character ID as gta_world_id
@@ -193,7 +188,6 @@ try {
     $userData = [
         'id' => $userId,
         'name' => $characterName,
-        'email' => $email,
         'discord' => $discord,
         'avatar_url' => $avatarUrl,
         'phone_number' => null,
