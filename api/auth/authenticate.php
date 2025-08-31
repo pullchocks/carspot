@@ -82,14 +82,23 @@ try {
         exit;
     }
     
+    error_log("Authentication attempt - GTA World ID: $gtaWorldId, Character ID: $characterId, Username: $gtaWorldUsername");
+    
     // Check if this specific character already exists in our system
-    // Use the character ID as the gta_world_id since each character should have their own account
+    // First check by character ID (gta_world_id) - each character should have their own account
+    error_log("Checking for existing user with character ID: $characterId");
     $stmt = $pdo->prepare("SELECT * FROM users WHERE gta_world_id = ?");
     if (!$stmt) {
         throw new Exception('Failed to prepare user query: ' . implode(', ', $pdo->errorInfo()));
     }
     $stmt->execute([$characterId]);
     $existingUser = $stmt->fetch();
+    
+    if ($existingUser) {
+        error_log("Found existing user: " . json_encode($existingUser));
+    } else {
+        error_log("No existing user found with character ID: $characterId");
+    }
 
     if ($existingUser) {
         // User exists, update last login and return user data
@@ -135,12 +144,32 @@ try {
         echo json_encode($userData);
         exit;
     }
+    
+    // If no user found by character ID, check if there's a user with the same GTA World account ID
+    // This would indicate they're trying to log in with a different character from the same account
+    error_log("Checking for existing user with GTA World account ID: $gtaWorldId");
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE gta_world_id = ?");
+    if (!$stmt) {
+        throw new Exception('Failed to prepare GTA World user query: ' . implode(', ', $pdo->errorInfo()));
+    }
+    $stmt->execute([$gtaWorldId]);
+    $existingGtaWorldUser = $stmt->fetch();
+    
+    if ($existingGtaWorldUser) {
+        // User exists with this GTA World account, but different character
+        // We should create a new character account for them
+        error_log("User with GTA World ID $gtaWorldId exists, creating new character account for character ID $characterId");
+    } else {
+        error_log("No existing user found with GTA World account ID: $gtaWorldId");
+    }
 
     // User doesn't exist, create new user
     $characterName = $selectedCharacter ? $selectedCharacter['name'] : $gtaWorldUsername;
     
-    // Handle nullable fields - Discord might not be available for GTA World users
-    $discordValue = $discord ?: 'gta_world_' . $gtaWorldId; // Generate unique Discord-like identifier
+    // Handle nullable fields - Discord will be filled in when user completes profile
+    $discordValue = $discord ?: null; // Use provided discord or NULL initially
+    
+    error_log("Creating new user with character name: $characterName, discord: $discordValue, character ID: $characterId");
     
     $insertStmt = $pdo->prepare("
         INSERT INTO users (

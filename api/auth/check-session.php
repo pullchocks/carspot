@@ -4,6 +4,14 @@ require_once '../config_mysql.php';
 require_once '../database_mysql.php';
 
 header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Credentials: true');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    exit(0);
+}
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
@@ -18,7 +26,7 @@ try {
     $pdo = getConnection();
     
     // Get user information
-    $stmt = $pdo->prepare("SELECT id, name, email, discord, phone_number, routing_number, avatar_url, is_dealer, staff_role, gta_world_id, gta_world_username, created_at FROM users WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT id, name, discord, phone_number, routing_number, avatar_url, is_dealer, staff_role, gta_world_id, gta_world_username, created_at FROM users WHERE id = ?");
     $stmt->execute([$_SESSION['user_id']]);
     $user = $stmt->fetch();
     
@@ -42,7 +50,6 @@ try {
         'user' => [
             'id' => $user['id'],
             'name' => $user['name'],
-            'email' => $user['email'],
             'discord' => $user['discord'],
             'phone_number' => $user['phone_number'],
             'routing_number' => $user['routing_number'],
