@@ -194,6 +194,56 @@ try {
         // Continue without wallet - user can still function
     }
     
+    // Trigger webhook for new user registration
+    try {
+        $webhookData = [
+            'webhook_id' => 'new-user',
+            'data' => [
+                'username' => $characterName,
+                'gta_world_id' => $characterId,
+                'gta_world_username' => $gtaWorldUsername,
+                'user_id' => $userId
+            ]
+        ];
+        
+        // Queue webhook event in database
+        $webhookStmt = $pdo->prepare("
+            INSERT INTO webhook_events (webhook_id, event_type, event_data, status) 
+            VALUES (?, 'new-user', ?, 'pending')
+        ");
+        $webhookStmt->execute(['new-user', json_encode($webhookData['data'])]);
+        
+        // Also trigger webhook immediately via API
+        $webhookPayload = json_encode([
+            'webhook_id' => 'new-user',
+            'data' => $webhookData['data']
+        ]);
+        
+        // Make internal API call to trigger webhook
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, 'https://carspot.site/api/webhooks.php?action=trigger');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $webhookPayload);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // For local development
+        
+        $webhookResponse = curl_exec($ch);
+        $webhookHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($webhookHttpCode === 200) {
+            error_log("Webhook triggered successfully for new user: $characterName (ID: $userId)");
+        } else {
+            error_log("Webhook trigger failed for new user ID $userId: HTTP $webhookHttpCode - $webhookResponse");
+        }
+        
+    } catch (Exception $webhookError) {
+        error_log("Failed to trigger webhook for new user ID $userId: " . $webhookError->getMessage());
+        // Continue without webhook - user can still function
+    }
+    
     // Set session variables for new user
     $_SESSION['user_id'] = $userId;
     $_SESSION['user_name'] = $characterName;

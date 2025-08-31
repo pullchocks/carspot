@@ -12,10 +12,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 header('Content-Type: application/json');
 
-require_once 'database.php';
+require_once 'config_mysql.php';
+require_once 'database_mysql.php';
 
 try {
-    $pdo = getDatabaseConnection();
+    $pdo = getConnection();
 } catch (Exception $e) {
     error_log('Webhook API: Database connection failed: ' . $e->getMessage());
     http_response_code(500);
