@@ -196,39 +196,46 @@ try {
     
     // Trigger webhook for new user registration
     try {
-        // Trigger the existing webhook system
-        $webhookPayload = json_encode([
-            'webhook_id' => 'new-user',
-            'data' => [
-                'username' => $characterName,
-                'gta_world_id' => $characterId,
-                'gta_world_username' => $gtaWorldUsername,
-                'user_id' => $userId
-            ]
-        ]);
+        // Get webhook configuration from database
+        $webhookStmt = $pdo->prepare("SELECT * FROM webhook_configs WHERE webhook_id = 'new-user' AND enabled = 1");
+        $webhookStmt->execute();
+        $webhook = $webhookStmt->fetch();
         
-        // Call the existing webhook API
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, 'https://carspot.site/api/webhooks.php?action=trigger');
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $webhookPayload);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        
-        $webhookResponse = curl_exec($ch);
-        $webhookHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
-        if ($webhookHttpCode === 200) {
-            error_log("Webhook triggered successfully for new user: $characterName (ID: $userId)");
+        if ($webhook && !empty($webhook['url'])) {
+            // Format message using template
+            $message = $webhook['message_template'];
+            $message = str_replace('{username}', $characterName, $message);
+            $message = str_replace('{gta_world_id}', $characterId, $message);
+            $message = str_replace('{gta_world_username}', $gtaWorldUsername, $message);
+            $message = str_replace('{user_id}', $userId, $message);
+            
+            // Send directly to Discord
+            $payload = ['content' => $message];
+            
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $webhook['url']);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            
+            if ($httpCode === 200) {
+                error_log("Webhook sent successfully to Discord for new user: $characterName (ID: $userId)");
+            } else {
+                error_log("Webhook failed for new user ID $userId: HTTP $httpCode");
+            }
         } else {
-            error_log("Webhook trigger failed for new user ID $userId: HTTP $webhookHttpCode");
+            error_log("Webhook not configured or disabled for new user: $characterName (ID: $userId)");
         }
         
     } catch (Exception $webhookError) {
-        error_log("Failed to trigger webhook for new user ID $userId: " . $webhookError->getMessage());
+        error_log("Failed to send webhook for new user ID $userId: " . $webhookError->getMessage());
         // Continue without webhook - user can still function
     }
     
