@@ -304,24 +304,64 @@ function createDealerAccountFromApplication($applicationId) {
         // Get the GTA World ID from the application
         $gtaWorldId = $application['gta_world_id'];
         
-        if (!$gtaWorldId) {
-            error_log("Dealer Application: No gta_world_id found in application {$applicationId}");
-            return;
+        $user = null;
+        $ownerId = null;
+        
+        if ($gtaWorldId) {
+            // Try to find user by GTA World ID first
+            $userQuery = "SELECT id, name, discord, is_dealer FROM users WHERE gta_world_id = ?";
+            $userStmt = $pdo->prepare($userQuery);
+            $userStmt->execute([$gtaWorldId]);
+            $user = $userStmt->fetch();
+            
+            if ($user) {
+                $ownerId = $user['id'];
+                error_log("Dealer Application: Found user by GTA World ID {$gtaWorldId} - User ID: {$ownerId}");
+            }
         }
         
-        // Find the user by GTA World ID
-        $userQuery = "SELECT id, name, discord, is_dealer FROM users WHERE gta_world_id = ?";
-        $userStmt = $pdo->prepare($userQuery);
-        $userStmt->execute([$gtaWorldId]);
-        $user = $userStmt->fetch();
-        
+        // If no user found by GTA World ID, try to find by company name
         if (!$user) {
-            error_log("Dealer Application: User with GTA World ID {$gtaWorldId} not found for application {$applicationId}");
-            return;
+            error_log("Dealer Application: No user found by GTA World ID, trying company name: {$application['company_name']}");
+            
+            $userQuery = "SELECT id, name, discord, is_dealer FROM users WHERE company_name = ? OR name = ? OR discord = ? LIMIT 1";
+            $userStmt = $pdo->prepare($userQuery);
+            $userStmt->execute([$application['company_name'], $application['company_name'], $application['company_name']]);
+            $user = $userStmt->fetch();
+            
+            if ($user) {
+                $ownerId = $user['id'];
+                error_log("Dealer Application: Found user by company name - User ID: {$ownerId}");
+            }
         }
         
-        $ownerId = $user['id'];
-        error_log("Dealer Application: Found user ID {$ownerId} (GTA World ID: {$gtaWorldId}, name: {$user['name']}, discord: {$user['discord']}) for application {$applicationId}");
+        // If still no user found, create a new user
+        if (!$user) {
+            error_log("Dealer Application: No existing user found, creating new user for: {$application['company_name']}");
+            
+            $createUserQuery = "
+                INSERT INTO users (name, company_name, is_dealer, status, created_at)
+                VALUES (?, ?, 1, 'active', NOW())
+            ";
+            $createUserStmt = $pdo->prepare($createUserQuery);
+            $createUserStmt->execute([$application['company_name'], $application['company_name']]);
+            $ownerId = $pdo->lastInsertId();
+            
+            error_log("Dealer Application: Created new user with ID: {$ownerId}");
+        }
+        
+        error_log("Dealer Application: Using owner ID {$ownerId} for application {$applicationId}");
+        
+        // Check if dealer account already exists
+        $existingDealerQuery = "SELECT id FROM dealer_accounts WHERE owner_id = ?";
+        $existingDealerStmt = $pdo->prepare($existingDealerQuery);
+        $existingDealerStmt->execute([$ownerId]);
+        $existingDealer = $existingDealerStmt->fetch();
+        
+        if ($existingDealer) {
+            error_log("Dealer Application: Dealer account already exists for user ID {$ownerId}");
+            return;
+        }
         
         // Create the dealer account
         $dealerQuery = "
@@ -341,6 +381,11 @@ function createDealerAccountFromApplication($applicationId) {
         
         $dealerId = $pdo->lastInsertId();
         
+        if (!$dealerId) {
+            error_log("Dealer Application: Failed to create dealer account for application {$applicationId}");
+            return;
+        }
+        
         // Update the user's dealer status
         $updateUserQuery = "
             UPDATE users 
@@ -350,7 +395,10 @@ function createDealerAccountFromApplication($applicationId) {
         $updateUserStmt = $pdo->prepare($updateUserQuery);
         $updateUserStmt->execute([$application['company_name'], $ownerId]);
         
-        error_log("Dealer Application: Created dealer account ID $dealerId for application ID $applicationId");
+        $rowsAffected = $updateUserStmt->rowCount();
+        error_log("Dealer Application: Updated {$rowsAffected} user records for user ID {$ownerId}");
+        
+        error_log("Dealer Application: Successfully created dealer account ID {$dealerId} for application ID {$applicationId}");
         
     } catch (Exception $e) {
         error_log("Dealer Application: Error creating dealer account: " . $e->getMessage());
