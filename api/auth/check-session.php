@@ -1,7 +1,6 @@
 <?php
 session_start();
-require_once '../config_mysql.php';
-require_once '../database_mysql.php';
+require_once '../database_mysql_clean.php';
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
