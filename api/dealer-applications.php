@@ -285,15 +285,16 @@ function createDealerAccountFromApplication($applicationId) {
             return;
         }
         
-        // Find the user by company name or create a placeholder user
-        $userQuery = "SELECT id FROM users WHERE company_name = ? OR discord = ? LIMIT 1";
+        // Find the user by company name, discord, or name
+        $userQuery = "SELECT id, name, discord FROM users WHERE company_name = ? OR discord = ? OR name = ? LIMIT 1";
         $userStmt = $pdo->prepare($userQuery);
-        $userStmt->execute([$application['company_name'], $application['company_name']]);
+        $userStmt->execute([$application['company_name'], $application['company_name'], $application['company_name']]);
         $user = $userStmt->fetch();
         
         $ownerId = null;
         if ($user) {
             $ownerId = $user['id'];
+            error_log("Dealer Application: Found existing user ID {$ownerId} for application {$applicationId}");
         } else {
             // Create a placeholder user if none exists
             $createUserQuery = "
@@ -303,6 +304,7 @@ function createDealerAccountFromApplication($applicationId) {
             $createUserStmt = $pdo->prepare($createUserQuery);
             $createUserStmt->execute([$application['company_name'], $application['company_name']]);
             $ownerId = $pdo->lastInsertId();
+            error_log("Dealer Application: Created new user ID {$ownerId} for application {$applicationId}");
         }
         
         // Create the dealer account
