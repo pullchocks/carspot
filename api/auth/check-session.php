@@ -26,7 +26,7 @@ try {
     $pdo = getConnection();
     
     // Get user information
-    $stmt = $pdo->prepare("SELECT id, name, discord, phone_number, routing_number, avatar_url, is_dealer, staff_role, gta_world_id, gta_world_username, created_at FROM users WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT id, name, discord, phone_number, routing_number, avatar_url, is_dealer, staff_role, company_name, gta_world_id, gta_world_username, created_at FROM users WHERE id = ?");
     $stmt->execute([$_SESSION['user_id']]);
     $user = $stmt->fetch();
     
@@ -56,6 +56,7 @@ try {
             'avatar_url' => $user['avatar_url'],
             'is_dealer' => $user['is_dealer'],
             'staff_role' => $user['staff_role'],
+            'company_name' => $user['company_name'],
             'gta_world_id' => $user['gta_world_id'],
             'gta_world_username' => $user['gta_world_username'],
             'profile_complete' => $profileComplete,

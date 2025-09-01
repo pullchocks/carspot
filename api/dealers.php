@@ -121,6 +121,8 @@ function getDealerAccounts() {
         $countStmt->execute();
         $total = $countStmt->fetchColumn();
         
+        error_log("Dealers API: Found $total total dealers in database");
+        
         // Get dealers with additional data (simplified query to avoid join issues)
         $query = "
             SELECT 
@@ -143,18 +145,29 @@ function getDealerAccounts() {
         $stmt->execute([$limit, $offset]);
         $dealers = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
+        // If no dealers found with complex query, try simple query
+        if (empty($dealers) && $total > 0) {
+            error_log("Dealers API: Complex query returned no results, trying simple query");
+            $simpleQuery = "SELECT * FROM dealer_accounts ORDER BY created_at DESC LIMIT ? OFFSET ?";
+            $simpleStmt = $pdo->prepare($simpleQuery);
+            $simpleStmt->execute([$limit, $offset]);
+            $dealers = $simpleStmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+        
+        error_log("Dealers API: Retrieved " . count($dealers) . " dealers from database");
+        
         // Format the response to match AdminDealer interface
         $formattedDealers = array_map(function($dealer) {
             return [
                 'id' => (int)$dealer['id'],
-                'company_name' => $dealer['company_name'],
-                'owner_discord' => $dealer['owner_discord'] ?? $dealer['discord'],
-                'status' => $dealer['status'],
+                'company_name' => $dealer['company_name'] ?? 'Unknown Company',
+                'owner_discord' => $dealer['owner_discord'] ?? $dealer['discord'] ?? 'Unknown',
+                'status' => $dealer['status'] ?? 'active',
                 'membership_status' => $dealer['membership_status'] ?? 'expired',
-                'total_cars' => (int)$dealer['total_cars'],
+                'total_cars' => (int)($dealer['total_cars'] ?? 0),
                 'total_sales' => 0, // This would need to be calculated from sales table
-                'rating' => round((float)$dealer['rating'], 1),
-                'created_at' => $dealer['created_at']
+                'rating' => round((float)($dealer['rating'] ?? 0), 1),
+                'created_at' => $dealer['created_at'] ?? date('Y-m-d H:i:s')
             ];
         }, $dealers);
         

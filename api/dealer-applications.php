@@ -204,6 +204,11 @@ function updateDealerApplication($data) {
         if (isset($data['status'])) {
             $updates[] = "status = ?";
             $params[] = $data['status'];
+            
+            // If status is being set to 'approved', create dealer account
+            if ($data['status'] === 'approved') {
+                createDealerAccountFromApplication($data['id']);
+            }
         }
         
         if (isset($data['review_notes'])) {
@@ -263,6 +268,75 @@ function jsonResponse($data, $statusCode = 200) {
     header('Content-Type: application/json');
     echo json_encode($data);
     exit;
+}
+
+function createDealerAccountFromApplication($applicationId) {
+    global $pdo;
+    
+    try {
+        // Get the application details
+        $appQuery = "SELECT * FROM dealer_applications WHERE id = ?";
+        $appStmt = $pdo->prepare($appQuery);
+        $appStmt->execute([$applicationId]);
+        $application = $appStmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$application) {
+            error_log("Dealer Application: Application not found for ID: $applicationId");
+            return;
+        }
+        
+        // Find the user by company name or create a placeholder user
+        $userQuery = "SELECT id FROM users WHERE company_name = ? OR discord = ? LIMIT 1";
+        $userStmt = $pdo->prepare($userQuery);
+        $userStmt->execute([$application['company_name'], $application['company_name']]);
+        $user = $userStmt->fetch();
+        
+        $ownerId = null;
+        if ($user) {
+            $ownerId = $user['id'];
+        } else {
+            // Create a placeholder user if none exists
+            $createUserQuery = "
+                INSERT INTO users (name, company_name, is_dealer, status, created_at)
+                VALUES (?, ?, 1, 'active', NOW())
+            ";
+            $createUserStmt = $pdo->prepare($createUserQuery);
+            $createUserStmt->execute([$application['company_name'], $application['company_name']]);
+            $ownerId = $pdo->lastInsertId();
+        }
+        
+        // Create the dealer account
+        $dealerQuery = "
+            INSERT INTO dealer_accounts (name, company_name, owner_id, phone, discord, website, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'active', NOW())
+        ";
+        
+        $dealerStmt = $pdo->prepare($dealerQuery);
+        $dealerStmt->execute([
+            $application['company_name'],
+            $application['company_name'],
+            $ownerId,
+            $application['phone'],
+            $application['company_name'], // Use company name as discord placeholder
+            $application['website']
+        ]);
+        
+        $dealerId = $pdo->lastInsertId();
+        
+        // Update the user's dealer status
+        $updateUserQuery = "
+            UPDATE users 
+            SET is_dealer = 1, company_name = ?, updated_at = NOW()
+            WHERE id = ?
+        ";
+        $updateUserStmt = $pdo->prepare($updateUserQuery);
+        $updateUserStmt->execute([$application['company_name'], $ownerId]);
+        
+        error_log("Dealer Application: Created dealer account ID $dealerId for application ID $applicationId");
+        
+    } catch (Exception $e) {
+        error_log("Dealer Application: Error creating dealer account: " . $e->getMessage());
+    }
 }
 
 function handleError($message, $statusCode = 400) {
