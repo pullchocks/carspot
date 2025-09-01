@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 header('Content-Type: application/json');
 
 require_once 'config_mysql.php';
-require_once 'database_mysql.php';
+require_once 'database_mysql_clean.php';
 
 try {
     $pdo = getConnection();
