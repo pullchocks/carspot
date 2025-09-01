@@ -112,7 +112,7 @@ if ($action === 'makes') {
             LEFT JOIN car_makes cm ON c.make_id = cm.id
             LEFT JOIN car_models cmo ON c.model_id = cmo.id
             LEFT JOIN users u ON c.seller_id = u.id
-            WHERE c.dealer_id = ? AND c.status != 'removed'
+            WHERE c.dealer_account_id = ? AND c.status != 'removed'
             ORDER BY c.created_at DESC
         ";
         
