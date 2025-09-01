@@ -5,18 +5,44 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 switch ($method) {
     case 'GET':
-        // Get cars with optional filters
-        $filters = [];
-        if (isset($_GET['make'])) $filters['make'] = $_GET['make'];
-        if (isset($_GET['model'])) $filters['model'] = $_GET['model'];
-        if (isset($_GET['year'])) $filters['year'] = $_GET['year'];
-        if (isset($_GET['minPrice'])) $filters['minPrice'] = $_GET['minPrice'];
-        if (isset($_GET['maxPrice'])) $filters['maxPrice'] = $_GET['maxPrice'];
-        if (isset($_GET['status'])) $filters['status'] = $_GET['status'];
-        if (isset($_GET['sellerId'])) $filters['sellerId'] = $_GET['sellerId'];
-        if (isset($_GET['dealerId'])) $filters['dealerId'] = $_GET['dealerId'];
-        
-        getCars($filters);
+        // Check for specific endpoints first
+        if (isset($_GET['action'])) {
+            switch ($_GET['action']) {
+                case 'makes':
+                    getCarMakes();
+                    break;
+                case 'models':
+                    $makeId = $_GET['make_id'] ?? null;
+                    if (!$makeId) handleError('Make ID required for models');
+                    getCarModels($makeId);
+                    break;
+                default:
+                    // Get cars with optional filters
+                    $filters = [];
+                    if (isset($_GET['make'])) $filters['make'] = $_GET['make'];
+                    if (isset($_GET['model'])) $filters['model'] = $_GET['model'];
+                    if (isset($_GET['minPrice'])) $filters['minPrice'] = $_GET['minPrice'];
+                    if (isset($_GET['maxPrice'])) $filters['maxPrice'] = $_GET['maxPrice'];
+                    if (isset($_GET['status'])) $filters['status'] = $_GET['status'];
+                    if (isset($_GET['sellerId'])) $filters['sellerId'] = $_GET['sellerId'];
+                    if (isset($_GET['dealerId'])) $filters['dealerId'] = $_GET['dealerId'];
+                    
+                    getCars($filters);
+                    break;
+            }
+        } else {
+            // Get cars with optional filters (default behavior)
+            $filters = [];
+            if (isset($_GET['make'])) $filters['make'] = $_GET['make'];
+            if (isset($_GET['model'])) $filters['model'] = $_GET['model'];
+            if (isset($_GET['minPrice'])) $filters['minPrice'] = $_GET['minPrice'];
+            if (isset($_GET['maxPrice'])) $filters['maxPrice'] = $_GET['maxPrice'];
+            if (isset($_GET['status'])) $filters['status'] = $_GET['status'];
+            if (isset($_GET['sellerId'])) $filters['sellerId'] = $_GET['sellerId'];
+            if (isset($_GET['dealerId'])) $filters['dealerId'] = $_GET['dealerId'];
+            
+            getCars($filters);
+        }
         break;
         
     case 'POST':
@@ -65,10 +91,7 @@ function getCars($filters = []) {
             $params[] = '%' . $filters['model'] . '%';
         }
         
-        if (!empty($filters['year'])) {
-            $query .= " AND c.year = ?";
-            $params[] = $filters['year'];
-        }
+
         
         if (!empty($filters['minPrice'])) {
             $query .= " AND c.price >= ?";
@@ -120,7 +143,7 @@ function createCar($data) {
     global $pdo;
     
     try {
-        $required = ['name', 'make', 'model', 'year', 'price', 'description', 'seller_id'];
+        $required = ['name', 'make', 'model', 'price', 'description', 'seller_id'];
         foreach ($required as $field) {
             if (empty($data[$field])) {
                 handleError("Missing required field: $field");
@@ -128,8 +151,8 @@ function createCar($data) {
         }
         
         $query = "
-            INSERT INTO cars (name, make, model, year, price, mileage, description, seller_id, dealer_account_id, is_dealer, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NOW())
+            INSERT INTO cars (name, make, model, price, mileage, description, seller_id, dealer_account_id, is_dealer, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NOW())
             RETURNING id
         ";
         
@@ -138,7 +161,6 @@ function createCar($data) {
             $data['name'],
             $data['make'],
             $data['model'],
-            $data['year'],
             $data['price'],
             $data['mileage'] ?? 0,
             $data['description'],
@@ -166,7 +188,7 @@ function updateCar($data) {
         $fields = [];
         $params = [];
         
-        $updatableFields = ['name', 'make', 'model', 'year', 'price', 'mileage', 'description', 'status', 'dealer_account_id', 'is_dealer'];
+        $updatableFields = ['name', 'make', 'model', 'price', 'mileage', 'description', 'status', 'dealer_account_id', 'is_dealer'];
         foreach ($updatableFields as $field) {
             if (isset($data[$field])) {
                 $fields[] = "$field = ?";
