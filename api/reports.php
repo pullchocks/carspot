@@ -10,7 +10,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
-require_once 'database.php';
+require_once 'database_mysql_clean.php';
+
+// Initialize database connection
+try {
+    $pdo = getConnection();
+} catch (Exception $e) {
+    error_log('Reports API: Database connection failed: ' . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['error' => 'Database connection failed: ' . $e->getMessage()]);
+    exit;
+}
 
 $method = $_SERVER['REQUEST_METHOD'];
 

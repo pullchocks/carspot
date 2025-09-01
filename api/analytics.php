@@ -10,7 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
-require_once 'database.php';
+require_once 'database_mysql_clean.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -61,6 +61,13 @@ function getDashboardAnalytics() {
     global $pdo;
     
     try {
+        $pdo = getConnection();
+    } catch (Exception $e) {
+        handleError('Database connection failed: ' . $e->getMessage(), 500);
+        return;
+    }
+    
+    try {
         // Get basic counts
         $queries = [
             'total_users' => "SELECT COUNT(*) as count FROM users WHERE status = 'active'",
@@ -100,6 +107,13 @@ function getDashboardAnalytics() {
 
 function getUserAnalytics() {
     global $pdo;
+    
+    try {
+        $pdo = getConnection();
+    } catch (Exception $e) {
+        handleError('Database connection failed: ' . $e->getMessage(), 500);
+        return;
+    }
     
     try {
         $queries = [
@@ -148,6 +162,13 @@ function getUserAnalytics() {
 
 function getCarAnalytics() {
     global $pdo;
+    
+    try {
+        $pdo = getConnection();
+    } catch (Exception $e) {
+        handleError('Database connection failed: ' . $e->getMessage(), 500);
+        return;
+    }
     
     try {
         $queries = [
@@ -201,6 +222,13 @@ function getDealerAnalytics() {
     global $pdo;
     
     try {
+        $pdo = getConnection();
+    } catch (Exception $e) {
+        handleError('Database connection failed: ' . $e->getMessage(), 500);
+        return;
+    }
+    
+    try {
         $queries = [
             'dealers_by_status' => "
                 SELECT
@@ -237,6 +265,13 @@ function getDealerAnalytics() {
 
 function getRevenueAnalytics() {
     global $pdo;
+    
+    try {
+        $pdo = getConnection();
+    } catch (Exception $e) {
+        handleError('Database connection failed: ' . $e->getMessage(), 500);
+        return;
+    }
     
     try {
         $queries = [
@@ -285,6 +320,13 @@ function getRevenueAnalytics() {
 
 function getStaffActions() {
     global $pdo;
+    
+    try {
+        $pdo = getConnection();
+    } catch (Exception $e) {
+        handleError('Database connection failed: ' . $e->getMessage(), 500);
+        return;
+    }
     
     try {
         $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
@@ -348,6 +390,13 @@ function getStaffActions() {
 
 function logStaffAction($data) {
     global $pdo;
+    
+    try {
+        $pdo = getConnection();
+    } catch (Exception $e) {
+        handleError('Database connection failed: ' . $e->getMessage(), 500);
+        return;
+    }
     
     try {
         $required = ['staff_id', 'action_type', 'target_type', 'target_id', 'details'];
