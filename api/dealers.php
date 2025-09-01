@@ -534,8 +534,8 @@ function checkUserDealerRole($userId) {
             handleError('User ID required');
         }
         
-        // First check if user is a dealer themselves
-        $dealerQuery = "SELECT id, company_name FROM dealer_accounts WHERE discord = (SELECT discord FROM users WHERE id = ?)";
+        // First check if user is a dealer themselves (owner of a dealer account)
+        $dealerQuery = "SELECT id, company_name FROM dealer_accounts WHERE owner_id = ?";
         $dealerStmt = $pdo->prepare($dealerQuery);
         $dealerStmt->execute([$userId]);
         $dealerAccount = $dealerStmt->fetch();
