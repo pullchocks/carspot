@@ -45,7 +45,8 @@ switch ($method) {
         break;
         
     case 'DELETE':
-        $id = $_GET['id'] ?? null;
+        $data = json_decode(file_get_contents('php://input'), true);
+        $id = $data['id'] ?? null;
         if (!$id) handleError('Application ID required');
         deleteDealerApplication($id);
         break;
@@ -67,6 +68,7 @@ function getDealerApplications() {
             $createTableSQL = "
             CREATE TABLE IF NOT EXISTS dealer_applications (
                 id INT AUTO_INCREMENT PRIMARY KEY,
+                gta_world_id INT,
                 company_name VARCHAR(255) NOT NULL,
                 business_type VARCHAR(100) NOT NULL,
                 description TEXT,
@@ -79,7 +81,8 @@ function getDealerApplications() {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 INDEX idx_status (status),
-                INDEX idx_created_at (created_at)
+                INDEX idx_created_at (created_at),
+                INDEX idx_gta_world_id (gta_world_id)
             )";
             
             $pdo->exec($createTableSQL);
@@ -125,6 +128,7 @@ function createDealerApplication($data) {
         $companyName = $data['company_name'] ?? $data['companyName'] ?? null;
         $businessType = $data['business_type'] ?? $data['businessType'] ?? null;
         $phone = $data['phone'] ?? null;
+        $gtaWorldId = $data['gta_world_id'] ?? null;
         
         // Validate required fields
         if (empty($companyName)) {
@@ -146,6 +150,7 @@ function createDealerApplication($data) {
             $createTableSQL = "
             CREATE TABLE IF NOT EXISTS dealer_applications (
                 id INT AUTO_INCREMENT PRIMARY KEY,
+                gta_world_id INT,
                 company_name VARCHAR(255) NOT NULL,
                 business_type VARCHAR(100) NOT NULL,
                 description TEXT,
@@ -158,19 +163,30 @@ function createDealerApplication($data) {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 INDEX idx_status (status),
-                INDEX idx_created_at (created_at)
+                INDEX idx_created_at (created_at),
+                INDEX idx_gta_world_id (gta_world_id)
             )";
             
             $pdo->exec($createTableSQL);
         }
         
+        // Check if gta_world_id column exists, if not add it
+        $columnCheck = $pdo->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'dealer_applications' AND column_name = 'gta_world_id'");
+        $columnExists = $columnCheck->fetchColumn();
+        
+        if (!$columnExists) {
+            $pdo->exec("ALTER TABLE dealer_applications ADD COLUMN gta_world_id INT AFTER id");
+            $pdo->exec("ALTER TABLE dealer_applications ADD INDEX idx_gta_world_id (gta_world_id)");
+        }
+        
         $query = "
-            INSERT INTO dealer_applications (company_name, business_type, description, website, phone, status)
-            VALUES (?, ?, ?, ?, ?, 'pending')
+            INSERT INTO dealer_applications (gta_world_id, company_name, business_type, description, website, phone, status)
+            VALUES (?, ?, ?, ?, ?, ?, 'pending')
         ";
         
         $stmt = $pdo->prepare($query);
         $stmt->execute([
+            $gtaWorldId,
             $companyName,
             $businessType,
             $data['description'] ?? null,
@@ -285,27 +301,27 @@ function createDealerAccountFromApplication($applicationId) {
             return;
         }
         
-        // Find the user by company name, discord, or name
-        $userQuery = "SELECT id, name, discord FROM users WHERE company_name = ? OR discord = ? OR name = ? LIMIT 1";
+        // Get the GTA World ID from the application
+        $gtaWorldId = $application['gta_world_id'];
+        
+        if (!$gtaWorldId) {
+            error_log("Dealer Application: No gta_world_id found in application {$applicationId}");
+            return;
+        }
+        
+        // Find the user by GTA World ID
+        $userQuery = "SELECT id, name, discord, is_dealer FROM users WHERE gta_world_id = ?";
         $userStmt = $pdo->prepare($userQuery);
-        $userStmt->execute([$application['company_name'], $application['company_name'], $application['company_name']]);
+        $userStmt->execute([$gtaWorldId]);
         $user = $userStmt->fetch();
         
-        $ownerId = null;
-        if ($user) {
-            $ownerId = $user['id'];
-            error_log("Dealer Application: Found existing user ID {$ownerId} for application {$applicationId}");
-        } else {
-            // Create a placeholder user if none exists
-            $createUserQuery = "
-                INSERT INTO users (name, company_name, is_dealer, status, created_at)
-                VALUES (?, ?, 1, 'active', NOW())
-            ";
-            $createUserStmt = $pdo->prepare($createUserQuery);
-            $createUserStmt->execute([$application['company_name'], $application['company_name']]);
-            $ownerId = $pdo->lastInsertId();
-            error_log("Dealer Application: Created new user ID {$ownerId} for application {$applicationId}");
+        if (!$user) {
+            error_log("Dealer Application: User with GTA World ID {$gtaWorldId} not found for application {$applicationId}");
+            return;
         }
+        
+        $ownerId = $user['id'];
+        error_log("Dealer Application: Found user ID {$ownerId} (GTA World ID: {$gtaWorldId}, name: {$user['name']}, discord: {$user['discord']}) for application {$applicationId}");
         
         // Create the dealer account
         $dealerQuery = "
