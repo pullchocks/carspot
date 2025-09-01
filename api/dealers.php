@@ -109,12 +109,64 @@ function getDealerAccounts() {
     global $pdo;
     
     try {
-        $query = "SELECT * FROM dealer_accounts ORDER BY created_at DESC";
-        $stmt = $pdo->prepare($query);
-        $stmt->execute();
-        $dealers = $stmt->fetchAll();
+        // Get pagination parameters
+        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 20;
+        $offset = ($page - 1) * $limit;
         
-        jsonResponse($dealers);
+        // Get total count
+        $countQuery = "SELECT COUNT(*) FROM dealer_accounts";
+        $countStmt = $pdo->prepare($countQuery);
+        $countStmt->execute();
+        $total = $countStmt->fetchColumn();
+        
+        // Get dealers with additional data
+        $query = "
+            SELECT 
+                da.*,
+                u.name as owner_name,
+                u.discord as owner_discord,
+                COUNT(c.id) as total_cars,
+                COALESCE(AVG(r.rating), 0) as rating,
+                COUNT(r.id) as total_reviews,
+                dm.status as membership_status,
+                dm.end_date as membership_end_date
+            FROM dealer_accounts da
+            LEFT JOIN users u ON da.owner_id = u.id
+            LEFT JOIN cars c ON da.id = c.dealer_account_id AND c.status = 'active'
+            LEFT JOIN reviews r ON u.id = r.reviewed_user_id AND r.review_type = 'seller'
+            LEFT JOIN dealer_memberships dm ON da.id = dm.dealer_account_id
+            GROUP BY da.id
+            ORDER BY da.created_at DESC
+            LIMIT ? OFFSET ?
+        ";
+        
+        $stmt = $pdo->prepare($query);
+        $stmt->execute([$limit, $offset]);
+        $dealers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Format the response to match AdminDealer interface
+        $formattedDealers = array_map(function($dealer) {
+            return [
+                'id' => (int)$dealer['id'],
+                'company_name' => $dealer['company_name'],
+                'owner_discord' => $dealer['owner_discord'] ?? $dealer['discord'],
+                'status' => $dealer['status'],
+                'membership_status' => $dealer['membership_status'] ?? 'expired',
+                'total_cars' => (int)$dealer['total_cars'],
+                'total_sales' => 0, // This would need to be calculated from sales table
+                'rating' => round((float)$dealer['rating'], 1),
+                'created_at' => $dealer['created_at']
+            ];
+        }, $dealers);
+        
+        jsonResponse([
+            'dealers' => $formattedDealers,
+            'total' => (int)$total,
+            'page' => $page,
+            'limit' => $limit,
+            'pages' => ceil($total / $limit)
+        ]);
         
     } catch (Exception $e) {
         handleError('Failed to get dealer accounts: ' . $e->getMessage(), 500);
@@ -152,23 +204,35 @@ function createDealerAccount($data) {
             }
         }
         
+        // Get user ID from discord or create a placeholder
+        $ownerId = null;
+        if (!empty($data['discord'])) {
+            $userQuery = "SELECT id FROM users WHERE discord = ? LIMIT 1";
+            $userStmt = $pdo->prepare($userQuery);
+            $userStmt->execute([$data['discord']]);
+            $user = $userStmt->fetch();
+            if ($user) {
+                $ownerId = $user['id'];
+            }
+        }
+        
         $query = "
-            INSERT INTO dealer_accounts (name, company_name, phone, discord, website, expected_monthly_listings, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'pending', NOW())
-            RETURNING id
+            INSERT INTO dealer_accounts (name, company_name, owner_id, phone, discord, website, expected_monthly_listings, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NOW())
         ";
         
         $stmt = $pdo->prepare($query);
         $stmt->execute([
             $data['name'],
             $data['company_name'],
+            $ownerId,
             $data['phone'],
             $data['discord'],
             $data['website'] ?? null,
             $data['expected_monthly_listings'] ?? null
         ]);
         
-        $dealerId = $stmt->fetchColumn();
+        $dealerId = $pdo->lastInsertId();
         jsonResponse(['id' => $dealerId, 'message' => 'Dealer account created successfully'], 201);
         
     } catch (Exception $e) {
@@ -260,7 +324,6 @@ function addUserToDealer($data) {
         $query = "
             INSERT INTO dealer_user_roles (dealer_account_id, user_id, role, permissions, created_at)
             VALUES (?, ?, ?, ?, NOW())
-            RETURNING id
         ";
         
         $permissions = getPermissionsForRole($data['role']);
@@ -273,7 +336,7 @@ function addUserToDealer($data) {
             json_encode($permissions)
         ]);
         
-        $roleId = $stmt->fetchColumn();
+        $roleId = $pdo->lastInsertId();
         jsonResponse(['id' => $roleId, 'message' => 'User added to dealer team successfully'], 201);
         
     } catch (Exception $e) {
@@ -325,9 +388,8 @@ function sendInvitation($data) {
         }
         
         $query = "
-            INSERT INTO dealer_invitations (dealer_account_id, email, role, status, expires_at, created_at)
-            VALUES (?, ?, ?, 'pending', ?, NOW())
-            RETURNING id
+            INSERT INTO dealer_invitations (dealer_account_id, invited_by_user_id, discord, role, status, expires_at, created_at)
+            VALUES (?, ?, ?, ?, 'pending', ?, NOW())
         ";
         
         $expiresAt = date('Y-m-d H:i:s', strtotime('+7 days'));
@@ -335,12 +397,13 @@ function sendInvitation($data) {
         $stmt = $pdo->prepare($query);
         $stmt->execute([
             $data['dealer_account_id'],
-            $data['email'],
+            $data['invited_by_user_id'] ?? 1, // Default to admin user
+            $data['discord'] ?? $data['email'], // Use discord field as per schema
             $data['role'],
             $expiresAt
         ]);
         
-        $invitationId = $stmt->fetchColumn();
+        $invitationId = $pdo->lastInsertId();
         jsonResponse(['id' => $invitationId, 'message' => 'Invitation sent successfully'], 201);
         
     } catch (Exception $e) {
@@ -580,6 +643,17 @@ function addTeamMember($data) {
     } catch (Exception $e) {
         handleError('Failed to add team member: ' . $e->getMessage(), 500);
     }
+}
+
+function jsonResponse($data, $statusCode = 200) {
+    http_response_code($statusCode);
+    header('Content-Type: application/json');
+    echo json_encode($data);
+    exit;
+}
+
+function handleError($message, $statusCode = 400) {
+    jsonResponse(['error' => $message], $statusCode);
 }
 ?>
 
