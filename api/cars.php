@@ -104,13 +104,11 @@ if ($action === 'makes') {
         // Get cars for a specific dealer
         $query = "
             SELECT c.*, 
-                   cm.display_name as make_name,
-                   cmo.display_name as model_name,
+                   c.make as make_name,
+                   c.model as model_name,
                    u.name as seller_name,
                    u.discord as seller_discord
             FROM cars c
-            LEFT JOIN car_makes cm ON c.make_id = cm.id
-            LEFT JOIN car_models cmo ON c.model_id = cmo.id
             LEFT JOIN users u ON c.seller_id = u.id
             WHERE c.dealer_account_id = ? AND c.status != 'removed'
             ORDER BY c.created_at DESC
