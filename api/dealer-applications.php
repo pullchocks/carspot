@@ -1,6 +1,6 @@
 <?php
 // Add CORS headers for cross-origin requests
-header('Access-Control-Allow-Origin: https://carspot.site');
+header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
 header('Access-Control-Allow-Credentials: true');
@@ -121,11 +121,20 @@ function createDealerApplication($data) {
     global $pdo;
     
     try {
-        $required = ['company_name', 'business_type', 'phone'];
-        foreach ($required as $field) {
-            if (empty($data[$field])) {
-                handleError("Missing required field: $field");
-            }
+        // Handle both camelCase and snake_case field names
+        $companyName = $data['company_name'] ?? $data['companyName'] ?? null;
+        $businessType = $data['business_type'] ?? $data['businessType'] ?? null;
+        $phone = $data['phone'] ?? null;
+        
+        // Validate required fields
+        if (empty($companyName)) {
+            handleError("Missing required field: company_name");
+        }
+        if (empty($businessType)) {
+            handleError("Missing required field: business_type");
+        }
+        if (empty($phone)) {
+            handleError("Missing required field: phone");
         }
         
         // First check if the table exists
@@ -162,11 +171,11 @@ function createDealerApplication($data) {
         
         $stmt = $pdo->prepare($query);
         $stmt->execute([
-            $data['company_name'],
-            $data['business_type'],
+            $companyName,
+            $businessType,
             $data['description'] ?? null,
             $data['website'] ?? null,
-            $data['phone']
+            $phone
         ]);
         
         $applicationId = $pdo->lastInsertId();

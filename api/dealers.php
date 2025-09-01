@@ -1,6 +1,6 @@
 <?php
 // Add CORS headers for cross-origin requests
-header('Access-Control-Allow-Origin: https://carspot.site');
+header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
 header('Access-Control-Allow-Credentials: true');
@@ -109,6 +109,7 @@ function getDealerAccounts() {
     global $pdo;
     
     try {
+        error_log('Dealers API: Starting getDealerAccounts function');
         // Get pagination parameters
         $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
         $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 20;
@@ -120,23 +121,20 @@ function getDealerAccounts() {
         $countStmt->execute();
         $total = $countStmt->fetchColumn();
         
-        // Get dealers with additional data
+        // Get dealers with additional data (simplified query to avoid join issues)
         $query = "
             SELECT 
                 da.*,
                 u.name as owner_name,
                 u.discord as owner_discord,
-                COUNT(c.id) as total_cars,
-                COALESCE(AVG(r.rating), 0) as rating,
-                COUNT(r.id) as total_reviews,
+                (SELECT COUNT(*) FROM cars c WHERE c.dealer_account_id = da.id AND c.status = 'active') as total_cars,
+                (SELECT COALESCE(AVG(r.rating), 0) FROM reviews r WHERE r.reviewed_user_id = u.id AND r.review_type = 'seller') as rating,
+                (SELECT COUNT(*) FROM reviews r WHERE r.reviewed_user_id = u.id AND r.review_type = 'seller') as total_reviews,
                 dm.status as membership_status,
                 dm.end_date as membership_end_date
             FROM dealer_accounts da
             LEFT JOIN users u ON da.owner_id = u.id
-            LEFT JOIN cars c ON da.id = c.dealer_account_id AND c.status = 'active'
-            LEFT JOIN reviews r ON u.id = r.reviewed_user_id AND r.review_type = 'seller'
             LEFT JOIN dealer_memberships dm ON da.id = dm.dealer_account_id
-            GROUP BY da.id
             ORDER BY da.created_at DESC
             LIMIT ? OFFSET ?
         ";
@@ -160,6 +158,8 @@ function getDealerAccounts() {
             ];
         }, $dealers);
         
+        error_log('Dealers API: Successfully retrieved ' . count($formattedDealers) . ' dealers');
+        
         jsonResponse([
             'dealers' => $formattedDealers,
             'total' => (int)$total,
@@ -169,6 +169,7 @@ function getDealerAccounts() {
         ]);
         
     } catch (Exception $e) {
+        error_log('Dealers API: Error in getDealerAccounts: ' . $e->getMessage());
         handleError('Failed to get dealer accounts: ' . $e->getMessage(), 500);
     }
 }
