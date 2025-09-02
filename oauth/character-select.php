@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Check if profile is complete
             if ($existingUser && !empty($existingUser['phone_number']) && !empty($existingUser['routing_number'])) {
-                header("Location: https://carspot.site/dashboard");
+                header("Location: https://carspot.site/");
             } else {
                 header("Location: https://carspot.site/complete-profile");
             }

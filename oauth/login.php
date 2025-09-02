@@ -4,7 +4,7 @@ require_once 'oauth-config.php';
 
 // If user is already logged in, redirect to dashboard
 if (isset($_SESSION['user_id'])) {
-    header("Location: https://carspot.site/dashboard");
+    header("Location: https://carspot.site/");
     exit;
 }
 

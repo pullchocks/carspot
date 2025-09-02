@@ -108,7 +108,7 @@ try {
     $exists = $pdo->prepare("SELECT id FROM transactions WHERE reference_id = ?");
     $exists->execute([$token]);
     if ($exists->rowCount() > 0) {
-        header("Location: https://carspot.site/dashboard?deposit=already");
+        header("Location: https://carspot.site/?deposit=already");
         exit;
     }
     
@@ -121,7 +121,7 @@ try {
     $log->execute([$userId, $amount, $token, $routingFrom, $routingTo, $isSandbox ? 1 : 0]);
     
     // Redirect to dashboard with success message
-    header("Location: https://carspot.site/dashboard?deposit=success&amount=" . urlencode($amount));
+    header("Location: https://carspot.site/?deposit=success&amount=" . urlencode($amount));
     exit;
     
 } catch (Exception $e) {
