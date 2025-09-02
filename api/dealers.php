@@ -598,7 +598,7 @@ function searchUsers($query) {
                 gta_world_username, 
                 discord, 
                 is_dealer, 
-                is_staff
+                staff_role
             FROM users 
             WHERE 
                 name LIKE ? OR 
