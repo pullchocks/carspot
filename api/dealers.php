@@ -87,6 +87,12 @@ switch ($method) {
                 case 'decline_invitation':
                     declineInvitation($data);
                     break;
+                case 'change_member_role':
+                    changeMemberRole($data);
+                    break;
+                case 'leave_team':
+                    leaveTeam($data);
+                    break;
                 default:
                     handleError('Invalid action', 400);
             }
@@ -96,9 +102,20 @@ switch ($method) {
         break;
         
     case 'DELETE':
-        $id = $_GET['id'] ?? null;
-        if (!$id) handleError('Dealer ID required');
-        deleteDealerAccount($id);
+        if (isset($_GET['action'])) {
+            switch ($_GET['action']) {
+                case 'remove_team_member':
+                    $data = json_decode(file_get_contents('php://input'), true);
+                    removeTeamMember($data);
+                    break;
+                default:
+                    handleError('Invalid action', 400);
+            }
+        } else {
+            $id = $_GET['id'] ?? null;
+            if (!$id) handleError('Dealer ID required');
+            deleteDealerAccount($id);
+        }
         break;
         
     default:
@@ -661,6 +678,133 @@ function addTeamMember($data) {
         
     } catch (Exception $e) {
         handleError('Failed to add team member: ' . $e->getMessage(), 500);
+    }
+}
+
+function removeTeamMember($data) {
+    global $pdo;
+    
+    try {
+        if (empty($data['dealer_account_id']) || empty($data['user_id'])) {
+            handleError('Dealer account ID and user ID are required');
+        }
+        
+        // Check if user is a team member
+        $checkQuery = "
+            SELECT id, role FROM dealer_user_roles 
+            WHERE dealer_account_id = ? AND user_id = ? AND is_active = true
+        ";
+        $checkStmt = $pdo->prepare($checkQuery);
+        $checkStmt->execute([$data['dealer_account_id'], $data['user_id']]);
+        $member = $checkStmt->fetch();
+        
+        if (!$member) {
+            handleError('User is not a team member');
+        }
+        
+        // Prevent removing owner
+        if ($member['role'] === 'owner') {
+            handleError('Cannot remove the owner from the team');
+        }
+        
+        // Remove user from team (set is_active to false)
+        $updateQuery = "
+            UPDATE dealer_user_roles 
+            SET is_active = false, updated_at = NOW()
+            WHERE dealer_account_id = ? AND user_id = ?
+        ";
+        $updateStmt = $pdo->prepare($updateQuery);
+        $updateStmt->execute([$data['dealer_account_id'], $data['user_id']]);
+        
+        jsonResponse(['message' => 'Team member removed successfully']);
+        
+    } catch (Exception $e) {
+        handleError('Failed to remove team member: ' . $e->getMessage(), 500);
+    }
+}
+
+function changeMemberRole($data) {
+    global $pdo;
+    
+    try {
+        if (empty($data['dealer_account_id']) || empty($data['user_id']) || empty($data['new_role'])) {
+            handleError('Dealer account ID, user ID, and new role are required');
+        }
+        
+        // Validate role
+        $validRoles = ['owner', 'admin', 'manager', 'staff'];
+        if (!in_array($data['new_role'], $validRoles)) {
+            handleError('Invalid role. Must be one of: ' . implode(', ', $validRoles));
+        }
+        
+        // Check if user is a team member
+        $checkQuery = "
+            SELECT id, role FROM dealer_user_roles 
+            WHERE dealer_account_id = ? AND user_id = ? AND is_active = true
+        ";
+        $checkStmt = $pdo->prepare($checkQuery);
+        $checkStmt->execute([$data['dealer_account_id'], $data['user_id']]);
+        $member = $checkStmt->fetch();
+        
+        if (!$member) {
+            handleError('User is not a team member');
+        }
+        
+        // Update role
+        $updateQuery = "
+            UPDATE dealer_user_roles 
+            SET role = ?, updated_at = NOW()
+            WHERE dealer_account_id = ? AND user_id = ?
+        ";
+        $updateStmt = $pdo->prepare($updateQuery);
+        $updateStmt->execute([$data['new_role'], $data['dealer_account_id'], $data['user_id']]);
+        
+        jsonResponse(['message' => 'Member role updated successfully']);
+        
+    } catch (Exception $e) {
+        handleError('Failed to change member role: ' . $e->getMessage(), 500);
+    }
+}
+
+function leaveTeam($data) {
+    global $pdo;
+    
+    try {
+        if (empty($data['dealer_account_id']) || empty($data['user_id'])) {
+            handleError('Dealer account ID and user ID are required');
+        }
+        
+        // Check if user is a team member
+        $checkQuery = "
+            SELECT id, role FROM dealer_user_roles 
+            WHERE dealer_account_id = ? AND user_id = ? AND is_active = true
+        ";
+        $checkStmt = $pdo->prepare($checkQuery);
+        $checkStmt->execute([$data['dealer_account_id'], $data['user_id']]);
+        $member = $checkStmt->fetch();
+        
+        if (!$member) {
+            handleError('User is not a team member');
+        }
+        
+        // Prevent owner from leaving (they should transfer ownership first)
+        if ($member['role'] === 'owner') {
+            handleError('Owner cannot leave the team. Transfer ownership first.');
+        }
+        
+        // Remove user from team (set is_active to false)
+        $updateQuery = "
+            UPDATE dealer_user_roles 
+            SET is_active = false, updated_at = NOW()
+            WHERE dealer_account_id = ? AND user_id = ?
+        ";
+        $updateStmt = $pdo->prepare($updateQuery);
+        $updateStmt->execute([$data['dealer_account_id'], $data['user_id']]);
+        
+        jsonResponse(['message' => 'Successfully left the team']);
+        
+    } catch (Exception $e) {
+        handleError('Failed to leave team: ' . $e->getMessage(), 500);
     }
 }
 
