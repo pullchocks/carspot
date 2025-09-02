@@ -363,7 +363,7 @@ function getDealerTeam($dealerId) {
     
     try {
         $query = "
-            SELECT dur.*, u.username, u.email
+            SELECT dur.*, u.name, u.discord, u.gta_world_username
             FROM dealer_user_roles dur
             JOIN users u ON dur.user_id = u.id
             WHERE dur.dealer_account_id = ?
