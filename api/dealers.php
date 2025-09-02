@@ -613,6 +613,11 @@ function searchUsers($query) {
         $stmt->execute([$searchTerm, $searchTerm, $searchTerm]);
         $users = $stmt->fetchAll();
         
+        // Convert is_dealer to proper boolean values
+        foreach ($users as &$user) {
+            $user['is_dealer'] = (bool) $user['is_dealer'];
+        }
+        
         jsonResponse($users);
         
     } catch (Exception $e) {
