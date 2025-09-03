@@ -106,8 +106,7 @@ if ($action === 'makes') {
             SELECT c.*, 
                    c.make as make_name,
                    c.model as model_name,
-                   u.name as seller_name,
-
+                   u.name as seller_name
             FROM cars c
             LEFT JOIN users u ON c.seller_id = u.id
             WHERE c.dealer_account_id = ? AND c.status != 'removed'
