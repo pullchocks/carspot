@@ -433,13 +433,30 @@ function getPendingInvitations($dealerId) {
     global $pdo;
     
     try {
-        $query = "
-            SELECT di.*, u.name, u.gta_world_username
-            FROM dealer_invitations di
-            JOIN users u ON di.user_id = u.id
-            WHERE di.dealer_account_id = ? AND di.status = 'pending' AND di.expires_at > NOW()
-            ORDER BY di.created_at DESC
-        ";
+        // Check if the dealer_invitations table has the expected structure
+        $checkQuery = "SHOW COLUMNS FROM dealer_invitations LIKE 'user_id'";
+        $checkStmt = $pdo->prepare($checkQuery);
+        $checkStmt->execute();
+        $hasUserId = $checkStmt->fetch();
+        
+        if ($hasUserId) {
+            // New structure with user_id column
+            $query = "
+                SELECT di.*, u.name, u.gta_world_username
+                FROM dealer_invitations di
+                JOIN users u ON di.user_id = u.id
+                WHERE di.dealer_account_id = ? AND di.status = 'pending' AND di.expires_at > NOW()
+                ORDER BY di.created_at DESC
+            ";
+        } else {
+            // Old structure - return empty array for now since invitations aren't fully implemented
+            $query = "
+                SELECT di.*, '' as name, '' as gta_world_username
+                FROM dealer_invitations di
+                WHERE di.dealer_account_id = ? AND di.status = 'pending' AND di.expires_at > NOW()
+                ORDER BY di.created_at DESC
+            ";
+        }
         
         $stmt = $pdo->prepare($query);
         $stmt->execute([$dealerId]);
