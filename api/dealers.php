@@ -434,9 +434,11 @@ function getPendingInvitations($dealerId) {
     
     try {
         $query = "
-            SELECT * FROM dealer_invitations 
-            WHERE dealer_account_id = ? AND status = 'pending' AND expires_at > NOW()
-            ORDER BY created_at DESC
+            SELECT di.*, u.name, u.gta_world_username
+            FROM dealer_invitations di
+            JOIN users u ON di.user_id = u.id
+            WHERE di.dealer_account_id = ? AND di.status = 'pending' AND di.expires_at > NOW()
+            ORDER BY di.created_at DESC
         ";
         
         $stmt = $pdo->prepare($query);
