@@ -737,7 +737,7 @@ function changeMemberRole($data) {
         }
         
         // Validate role
-        $validRoles = ['owner', 'admin', 'manager', 'staff'];
+        $validRoles = ['owner', 'manager', 'staff'];
         if (!in_array($data['new_role'], $validRoles)) {
             handleError('Invalid role. Must be one of: ' . implode(', ', $validRoles));
         }
@@ -755,16 +755,63 @@ function changeMemberRole($data) {
             handleError('User is not a team member');
         }
         
-        // Update role
-        $updateQuery = "
-            UPDATE dealer_user_roles 
-            SET role = ?, updated_at = NOW()
-            WHERE dealer_account_id = ? AND user_id = ?
-        ";
-        $updateStmt = $pdo->prepare($updateQuery);
-        $updateStmt->execute([$data['new_role'], $data['dealer_account_id'], $data['user_id']]);
-        
-        jsonResponse(['message' => 'Member role updated successfully']);
+        // Handle ownership transfer
+        if ($data['new_role'] === 'owner') {
+            // Find current owner
+            $ownerQuery = "
+                SELECT user_id FROM dealer_user_roles 
+                WHERE dealer_account_id = ? AND role = 'owner' AND is_active = true
+            ";
+            $ownerStmt = $pdo->prepare($ownerQuery);
+            $ownerStmt->execute([$data['dealer_account_id']]);
+            $currentOwner = $ownerStmt->fetch();
+            
+            if ($currentOwner && $currentOwner['user_id'] != $data['user_id']) {
+                // Transfer ownership: make new user owner, make old owner admin
+                $pdo->beginTransaction();
+                
+                try {
+                    // Make current owner a manager
+                    $demoteQuery = "
+                        UPDATE dealer_user_roles 
+                        SET role = 'manager', updated_at = NOW()
+                        WHERE dealer_account_id = ? AND user_id = ?
+                    ";
+                    $demoteStmt = $pdo->prepare($demoteQuery);
+                    $demoteStmt->execute([$data['dealer_account_id'], $currentOwner['user_id']]);
+                    
+                    // Make new user the owner
+                    $promoteQuery = "
+                        UPDATE dealer_user_roles 
+                        SET role = 'owner', updated_at = NOW()
+                        WHERE dealer_account_id = ? AND user_id = ?
+                    ";
+                    $promoteStmt = $pdo->prepare($promoteQuery);
+                    $promoteStmt->execute([$data['dealer_account_id'], $data['user_id']]);
+                    
+                    $pdo->commit();
+                    jsonResponse(['message' => 'Ownership transferred successfully']);
+                    
+                } catch (Exception $e) {
+                    $pdo->rollback();
+                    throw $e;
+                }
+            } else {
+                // User is already the owner, no change needed
+                jsonResponse(['message' => 'User is already the owner']);
+            }
+        } else {
+            // Regular role change
+            $updateQuery = "
+                UPDATE dealer_user_roles 
+                SET role = ?, updated_at = NOW()
+                WHERE dealer_account_id = ? AND user_id = ?
+            ";
+            $updateStmt = $pdo->prepare($updateQuery);
+            $updateStmt->execute([$data['new_role'], $data['dealer_account_id'], $data['user_id']]);
+            
+            jsonResponse(['message' => 'Member role updated successfully']);
+        }
         
     } catch (Exception $e) {
         handleError('Failed to change member role: ' . $e->getMessage(), 500);

@@ -398,6 +398,16 @@ function createDealerAccountFromApplication($applicationId) {
         $rowsAffected = $updateUserStmt->rowCount();
         error_log("Dealer Application: Updated {$rowsAffected} user records for user ID {$ownerId}");
         
+        // Add the owner to the dealer_user_roles table
+        $addOwnerQuery = "
+            INSERT INTO dealer_user_roles (dealer_account_id, user_id, role, is_active, joined_at, created_at)
+            VALUES (?, ?, 'owner', 1, NOW(), NOW())
+        ";
+        $addOwnerStmt = $pdo->prepare($addOwnerQuery);
+        $addOwnerStmt->execute([$dealerId, $ownerId]);
+        
+        error_log("Dealer Application: Added owner to dealer_user_roles for dealer ID {$dealerId}, user ID {$ownerId}");
+        
         error_log("Dealer Application: Successfully created dealer account ID {$dealerId} for application ID {$applicationId}");
         
     } catch (Exception $e) {
