@@ -148,9 +148,9 @@ function getSales() {
                 c.year,
                 c.price as listing_price,
                 u1.name as seller_name,
-                u1.discord as seller_discord,
+
                 u2.name as buyer_name,
-                u2.discord as buyer_discord,
+
                 u3.name as verified_by_name
             FROM car_sales cs
             LEFT JOIN cars c ON cs.car_id = c.id
@@ -225,7 +225,7 @@ function getDealerSales($dealerId) {
                 c.year,
                 c.price as listing_price,
                 u1.name as seller_name,
-                u1.discord as seller_discord
+
             FROM car_sales cs
             LEFT JOIN cars c ON cs.car_id = c.id
             LEFT JOIN users u1 ON cs.seller_id = u1.id
@@ -291,9 +291,9 @@ function getCarSale($carId) {
                 c.year,
                 c.price as listing_price,
                 u1.name as seller_name,
-                u1.discord as seller_discord,
+
                 u2.name as buyer_name,
-                u2.discord as buyer_discord,
+
                 u3.name as verified_by_name
             FROM car_sales cs
             LEFT JOIN cars c ON cs.car_id = c.id
@@ -354,9 +354,9 @@ function completeCarSale($data) {
         // Create sale record
         $saleQuery = "
             INSERT INTO car_sales (
-                car_id, seller_id, buyer_id, buyer_name, buyer_discord,
+                car_id, seller_id, buyer_id, buyer_name,
                 sale_price, sale_notes, sale_method
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
         ";
         
         $saleStmt = $pdo->prepare($saleQuery);
@@ -365,7 +365,7 @@ function completeCarSale($data) {
             $data['seller_id'],
             $data['buyer_id'] ?? null,
             $data['buyer_name'] ?? null,
-            $data['buyer_discord'] ?? null,
+
             $data['sale_price'] ?? null,
             $data['sale_notes'] ?? null,
             $data['sale_method'] ?? 'online'
@@ -433,10 +433,7 @@ function updateSale($data) {
             $params[] = $data['buyer_name'];
         }
         
-        if (isset($data['buyer_discord'])) {
-            $updateFields[] = "buyer_discord = ?";
-            $params[] = $data['buyer_discord'];
-        }
+
         
         if (isset($data['sale_price'])) {
             $updateFields[] = "sale_price = ?";
@@ -604,11 +601,11 @@ function getSalesAnalytics() {
         $topSellersQuery = "
             SELECT 
                 u.name as seller_name,
-                u.discord as seller_discord,
+
                 COUNT(*) as sales_count
             FROM car_sales cs
             LEFT JOIN users u ON cs.seller_id = u.id
-            GROUP BY cs.seller_id, u.name, u.discord
+            GROUP BY cs.seller_id, u.name
             ORDER BY sales_count DESC
             LIMIT 10
         ";

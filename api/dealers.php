@@ -145,7 +145,7 @@ function getDealerAccounts() {
             SELECT 
                 da.*,
                 u.name as owner_name,
-                u.discord as owner_discord,
+
                 (SELECT COUNT(*) FROM cars c WHERE c.dealer_account_id = da.id AND c.status = 'active') as total_cars,
                 (SELECT COALESCE(AVG(r.rating), 0) FROM reviews r WHERE r.reviewed_user_id = u.id AND r.review_type = 'seller') as rating,
                 (SELECT COUNT(*) FROM reviews r WHERE r.reviewed_user_id = u.id AND r.review_type = 'seller') as total_reviews,
@@ -178,7 +178,7 @@ function getDealerAccounts() {
             return [
                 'id' => (int)$dealer['id'],
                 'company_name' => $dealer['company_name'] ?? 'Unknown Company',
-                'owner_discord' => $dealer['owner_discord'] ?? $dealer['discord'] ?? 'Unknown',
+
                 'status' => $dealer['status'] ?? 'active',
                 'membership_status' => $dealer['membership_status'] ?? 'expired',
                 'total_cars' => (int)($dealer['total_cars'] ?? 0),
@@ -228,37 +228,24 @@ function createDealerAccount($data) {
     global $pdo;
     
     try {
-        $required = ['name', 'company_name', 'phone', 'discord'];
+        $required = ['name', 'company_name', 'phone', 'owner_id'];
         foreach ($required as $field) {
             if (empty($data[$field])) {
                 handleError("Missing required field: $field");
             }
         }
         
-        // Get user ID from discord or create a placeholder
-        $ownerId = null;
-        if (!empty($data['discord'])) {
-            $userQuery = "SELECT id FROM users WHERE discord = ? LIMIT 1";
-            $userStmt = $pdo->prepare($userQuery);
-            $userStmt->execute([$data['discord']]);
-            $user = $userStmt->fetch();
-            if ($user) {
-                $ownerId = $user['id'];
-            }
-        }
-        
         $query = "
-            INSERT INTO dealer_accounts (name, company_name, owner_id, phone, discord, website, expected_monthly_listings, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NOW())
+            INSERT INTO dealer_accounts (name, company_name, owner_id, phone, website, expected_monthly_listings, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'pending', NOW())
         ";
         
         $stmt = $pdo->prepare($query);
         $stmt->execute([
             $data['name'],
             $data['company_name'],
-            $ownerId,
+            $data['owner_id'],
             $data['phone'],
-            $data['discord'],
             $data['website'] ?? null,
             $data['expected_monthly_listings'] ?? null
         ]);
@@ -282,7 +269,7 @@ function updateDealerAccount($data) {
         $fields = [];
         $params = [];
         
-        $updatableFields = ['name', 'company_name', 'phone', 'discord', 'website', 'expected_monthly_listings', 'status'];
+        $updatableFields = ['name', 'company_name', 'phone', 'website', 'expected_monthly_listings', 'status'];
         foreach ($updatableFields as $field) {
             if (isset($data[$field])) {
                 $fields[] = "$field = ?";
@@ -380,7 +367,7 @@ function getDealerTeam($dealerId) {
     
     try {
         $query = "
-            SELECT dur.*, u.name, u.discord, u.gta_world_username
+            SELECT dur.*, u.name, u.gta_world_username
             FROM dealer_user_roles dur
             JOIN users u ON dur.user_id = u.id
             WHERE dur.dealer_account_id = ?
@@ -402,7 +389,7 @@ function sendInvitation($data) {
     global $pdo;
     
     try {
-        $required = ['dealer_account_id', 'email', 'role'];
+        $required = ['dealer_account_id', 'user_id', 'role'];
         foreach ($required as $field) {
             if (empty($data[$field])) {
                 handleError("Missing required field: $field");
@@ -410,16 +397,16 @@ function sendInvitation($data) {
         }
         
         // Check if invitation already exists
-        $checkQuery = "SELECT id FROM dealer_invitations WHERE dealer_account_id = ? AND email = ? AND status = 'pending'";
+        $checkQuery = "SELECT id FROM dealer_invitations WHERE dealer_account_id = ? AND user_id = ? AND status = 'pending'";
         $checkStmt = $pdo->prepare($checkQuery);
-        $checkStmt->execute([$data['dealer_account_id'], $data['email']]);
+        $checkStmt->execute([$data['dealer_account_id'], $data['user_id']]);
         
         if ($checkStmt->fetch()) {
-            handleError('Invitation already exists for this email', 409);
+            handleError('Invitation already exists for this user', 409);
         }
         
         $query = "
-            INSERT INTO dealer_invitations (dealer_account_id, invited_by_user_id, discord, role, status, expires_at, created_at)
+            INSERT INTO dealer_invitations (dealer_account_id, invited_by_user_id, user_id, role, status, expires_at, created_at)
             VALUES (?, ?, ?, ?, 'pending', ?, NOW())
         ";
         
@@ -429,7 +416,7 @@ function sendInvitation($data) {
         $stmt->execute([
             $data['dealer_account_id'],
             $data['invited_by_user_id'] ?? 1, // Default to admin user
-            $data['discord'] ?? $data['email'], // Use discord field as per schema
+            $data['user_id'],
             $data['role'],
             $expiresAt
         ]);
@@ -607,27 +594,26 @@ function searchUsers($query) {
             handleError('Search query required');
         }
         
-        // Search by username, GTA World username, or Discord
+        // Search by username or GTA World username
         $searchQuery = "
             SELECT 
                 id, 
                 name, 
                 gta_world_username, 
-                discord, 
+
                 is_dealer, 
                 staff_role
             FROM users 
             WHERE 
                 name LIKE ? OR 
-                gta_world_username LIKE ? OR 
-                discord LIKE ?
+                gta_world_username LIKE ?
             ORDER BY name 
             LIMIT 20
         ";
         
         $searchTerm = "%{$query}%";
         $stmt = $pdo->prepare($searchQuery);
-        $stmt->execute([$searchTerm, $searchTerm, $searchTerm]);
+        $stmt->execute([$searchTerm, $searchTerm]);
         $users = $stmt->fetchAll();
         
         // Convert is_dealer to proper boolean values

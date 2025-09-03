@@ -309,7 +309,7 @@ function createDealerAccountFromApplication($applicationId) {
         
         if ($gtaWorldId) {
             // Try to find user by GTA World ID first
-            $userQuery = "SELECT id, name, discord, is_dealer FROM users WHERE gta_world_id = ?";
+            $userQuery = "SELECT id, name, is_dealer FROM users WHERE gta_world_id = ?";
             $userStmt = $pdo->prepare($userQuery);
             $userStmt->execute([$gtaWorldId]);
             $user = $userStmt->fetch();
@@ -324,9 +324,9 @@ function createDealerAccountFromApplication($applicationId) {
         if (!$user) {
             error_log("Dealer Application: No user found by GTA World ID, trying company name: {$application['company_name']}");
             
-            $userQuery = "SELECT id, name, discord, is_dealer FROM users WHERE company_name = ? OR name = ? OR discord = ? LIMIT 1";
+            $userQuery = "SELECT id, name, is_dealer FROM users WHERE company_name = ? OR name = ? LIMIT 1";
             $userStmt = $pdo->prepare($userQuery);
-            $userStmt->execute([$application['company_name'], $application['company_name'], $application['company_name']]);
+            $userStmt->execute([$application['company_name'], $application['company_name']]);
             $user = $userStmt->fetch();
             
             if ($user) {
@@ -365,7 +365,7 @@ function createDealerAccountFromApplication($applicationId) {
         
         // Create the dealer account
         $dealerQuery = "
-            INSERT INTO dealer_accounts (name, company_name, owner_id, phone, discord, website, status, created_at)
+            INSERT INTO dealer_accounts (name, company_name, owner_id, phone, website, status, created_at)
             VALUES (?, ?, ?, ?, ?, ?, 'active', NOW())
         ";
         
@@ -375,7 +375,7 @@ function createDealerAccountFromApplication($applicationId) {
             $application['company_name'],
             $ownerId,
             $application['phone'],
-            $application['company_name'], // Use company name as discord placeholder
+
             $application['website']
         ]);
         

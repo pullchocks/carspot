@@ -98,7 +98,7 @@ function getWebhookConfigs($pdo) {
             ('dealer-application', 'Dealer Application', 'Triggered when someone applies to become a dealer', 'private', '', TRUE, '🏢 **{username}** has applied to become a dealer!\n[Review Application]({application_url})', '{\"username\": \"AspiringDealer\", \"application_url\": \"https://carspot.site/admin/dealer-applications/123\"}'),
             ('dealer-payment', 'Dealer Payment', 'Triggered when a dealer pays their membership dues', 'private', '', TRUE, '💳 **{username}** has paid their dealer membership dues!\n**Amount:** ${amount}\n**Plan:** {plan}', '{\"username\": \"PremiumDealer\", \"amount\": \"$99.99\", \"plan\": \"Premium Monthly\"}'),
             ('tickets', 'Support Tickets', 'Triggered for ticket updates (creation, assignment, resolution)', 'system', '', TRUE, '🎫 **{action}**\n**User:** {username}\n**Subject:** {subject}\n**Status:** {status}\n[View Ticket]({ticket_url})', '{\"action\": \"New ticket submitted\", \"username\": \"User123\", \"subject\": \"Payment issue\", \"status\": \"Open\", \"ticket_url\": \"https://carspot.site/admin/tickets/123\"}'),
-            ('reports', 'System Reports', 'Triggered for report updates (creation, investigation, resolution)', 'system', '', TRUE, '🚨 **{action}**\n**Reporter:** {username}\n**Type:** {report_type}\n**Content:** {content}\n[View Report]({report_url})', '{\"action\": \"New report submitted\", \"username\": \"Reporter456\", \"report_type\": \"Inappropriate content\", \"content\": \"User posted offensive content\", \"report_url\": \"https://carspot.site/admin/reports/456\"}')
+
             ";
             
             $pdo->exec($insertSQL);
@@ -188,7 +188,7 @@ function saveWebhookConfig($pdo) {
                     'dealer-application' => '🏢 **{username}** has applied to become a dealer!\n[Review Application]({application_url})',
                     'dealer-payment' => '💳 **{username}** has paid their dealer membership dues!\n**Amount:** ${amount}\n**Plan:** {plan}',
                     'tickets' => '🎫 **{action}**\n**User:** {username}\n**Subject:** {subject}\n**Status:** {status}\n[View Ticket]({ticket_url})',
-                    'reports' => '🚨 **{action}**\n**Reporter:** {username}\n**Type:** {report_type}\n**Content:** {content}\n[View Report]({report_url})'
+
                 ];
                 $messageTemplate = $defaultTemplates[$webhookId] ?? '';
             }
@@ -298,19 +298,19 @@ function triggerWebhook($pdo) {
         // Format message using template
         $message = formatWebhookMessage($webhook['message_template'], $data);
         
-        // Send to Discord webhook if URL is set
+        // Send to webhook if URL is set
         if (!empty($webhook['url'])) {
-            $discordResponse = sendDiscordWebhook($webhook['url'], $message);
+            $webhookResponse = sendWebhook($webhook['url'], $message);
             
             echo json_encode([
                 'success' => true,
                 'message' => 'Webhook triggered successfully',
-                'discord_response' => $discordResponse
+                'webhook_response' => $webhookResponse
             ]);
         } else {
             echo json_encode([
                 'success' => true,
-                'message' => 'Webhook triggered (no Discord URL configured)',
+                'message' => 'Webhook triggered (no URL configured)',
                 'formatted_message' => $message
             ]);
         }
@@ -336,7 +336,7 @@ function formatWebhookMessage($template, $data) {
     return $message;
 }
 
-function sendDiscordWebhook($url, $message) {
+function sendWebhook($url, $message) {
     $payload = [
         'content' => $message
     ];

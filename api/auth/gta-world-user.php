@@ -69,7 +69,7 @@ try {
     echo json_encode([
         'id' => $user['id'],
         'username' => $user['username'] ?? '',
-        'discord' => $user['discord'] ?? null,
+
         'email' => $user['email'] ?? null,
         'avatar_url' => $user['avatar_url'] ?? null
     ]);

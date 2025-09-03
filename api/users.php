@@ -52,8 +52,7 @@ if ($action === 'admin_users') {
         
         if (isset($_GET['search']) && $_GET['search'] !== '') {
             $search = '%' . $_GET['search'] . '%';
-            $whereConditions[] = "(name LIKE ? OR discord LIKE ?)";
-            $params[] = $search;
+            $whereConditions[] = "(name LIKE ?)";
             $params[] = $search;
         }
         
@@ -70,7 +69,7 @@ if ($action === 'admin_users') {
             SELECT 
                 id,
                 name,
-                discord,
+
                 phone,
                 phone_number,
                 is_dealer,

@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // Get profile data from the already decoded input
 $routingNumber = $input['routing_number'] ?? null;
 $phoneNumber = $input['phone_number'] ?? null;
-$discord = $input['discord'] ?? null;
+
 
 if (!$routingNumber || !$phoneNumber) {
     http_response_code(400);
@@ -130,11 +130,11 @@ try {
     }
     
     // Log the values being updated
-    error_log("Updating user ID: $userId with routing_number: $routingNumber, phone_number: $phoneNumber, discord: " . ($discord ?? 'NULL'));
+    error_log("Updating user ID: $userId with routing_number: $routingNumber, phone_number: $phoneNumber");
     
     // Update user profile
-    $stmt = $pdo->prepare("UPDATE users SET routing_number = ?, phone_number = ?, discord = ?, updated_at = NOW() WHERE id = ?");
-    $result = $stmt->execute([$routingNumber, $phoneNumber, $discord, $userId]);
+    $stmt = $pdo->prepare("UPDATE users SET routing_number = ?, phone_number = ?, updated_at = NOW() WHERE id = ?");
+    $result = $stmt->execute([$routingNumber, $phoneNumber, $userId]);
     
     if ($result === false) {
         error_log("SQL execution failed: " . print_r($stmt->errorInfo(), true));

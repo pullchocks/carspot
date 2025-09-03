@@ -71,7 +71,7 @@ try {
     
     $gtaWorldId = $gtaWorldUser['id'];
     $gtaWorldUsername = $gtaWorldUser['username'] ?? '';
-    $discord = $gtaWorldUser['discord'] ?? null;
+
     $avatarUrl = $gtaWorldUser['avatar_url'] ?? null;
     
     // Get the character ID from the selected character
@@ -129,7 +129,7 @@ try {
         $userData = [
             'id' => $existingUser['id'],
             'name' => $existingUser['name'],
-            'discord' => $existingUser['discord'],
+
             'phone_number' => $existingUser['phone_number'] ?? null,
             'routing_number' => $existingUser['routing_number'] ?? null,
             'avatar_url' => $existingUser['avatar_url'],
@@ -152,15 +152,13 @@ try {
     // User doesn't exist, create new user
     $characterName = $selectedCharacter ? $selectedCharacter['name'] : $gtaWorldUsername;
     
-    // Handle nullable fields - Discord will be filled in when user completes profile
-    $discordValue = $discord ?: null; // Use provided discord or NULL initially
+
     
-    error_log("Creating new user with character name: $characterName, discord: $discordValue, character ID: $characterId");
+    error_log("Creating new user with character name: $characterName, character ID: $characterId");
     
     $insertStmt = $pdo->prepare("
         INSERT INTO users (
             name, 
-            discord, 
             avatar_url, 
             gta_world_id, 
             gta_world_username,
@@ -168,7 +166,7 @@ try {
             staff_role,
             created_at, 
             last_login
-        ) VALUES (?, ?, ?, ?, ?, false, NULL, NOW(), NOW())
+        ) VALUES (?, ?, ?, ?, false, NULL, NOW(), NOW())
     ");
     
     if (!$insertStmt) {
@@ -177,7 +175,6 @@ try {
     
     $insertStmt->execute([
         $characterName,
-        $discordValue,
         $avatarUrl,
         $characterId,  // Use character ID as gta_world_id
         $gtaWorldUsername
@@ -220,7 +217,7 @@ try {
             
             error_log("Final formatted message: " . $message);
             
-            // Send directly to Discord
+            // Send webhook notification
             $payload = ['content' => $message];
             
             $ch = curl_init();
@@ -237,7 +234,7 @@ try {
             curl_close($ch);
             
             if ($httpCode === 200) {
-                error_log("Webhook sent successfully to Discord for new user: $characterName (ID: $userId)");
+                error_log("Webhook sent successfully for new user: $characterName (ID: $userId)");
             } else {
                 error_log("Webhook failed for new user ID $userId: HTTP $httpCode");
             }
@@ -259,7 +256,7 @@ try {
     $userData = [
         'id' => $userId,
         'name' => $characterName,
-        'discord' => $discord,
+
         'avatar_url' => $avatarUrl,
         'phone_number' => null,
         'routing_number' => null,

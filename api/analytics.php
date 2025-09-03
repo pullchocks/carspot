@@ -81,10 +81,7 @@ function getDashboardAnalytics() {
             'total_sales' => "SELECT COUNT(*) as count FROM car_sales",
             'verified_sales' => "SELECT COUNT(*) as count FROM car_sales WHERE is_verified = TRUE",
             'pending_sale_verification' => "SELECT COUNT(*) as count FROM car_sales WHERE is_verified = FALSE",
-            'pending_reports' => "SELECT COUNT(*) as count FROM reports WHERE status = 'pending'",
-            'investigating_reports' => "SELECT COUNT(*) as count FROM reports WHERE status = 'investigating'",
-            'resolved_reports' => "SELECT COUNT(*) as count FROM reports WHERE status = 'resolved'",
-            'dismissed_reports' => "SELECT COUNT(*) as count FROM reports WHERE status = 'dismissed'"
+
         ];
         
         $analytics = [];
