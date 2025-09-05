@@ -101,12 +101,32 @@ try {
     }
 
     if ($existingUser) {
-        // User exists, update last login and return user data
-        $updateStmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+        // User exists, check if character name has changed and update if necessary
+        $characterName = $selectedCharacter ? $selectedCharacter['name'] : $gtaWorldUsername;
+        $currentName = $existingUser['name'];
+        
+        // Update user data if character name or avatar has changed
+        $updateFields = ['last_login = NOW()'];
+        $updateParams = [$existingUser['id']];
+        
+        if ($currentName !== $characterName) {
+            $updateFields[] = 'name = ?';
+            $updateParams[] = $characterName;
+            error_log("Character name changed from '$currentName' to '$characterName', updating database");
+        }
+        
+        if ($existingUser['avatar_url'] !== $avatarUrl) {
+            $updateFields[] = 'avatar_url = ?';
+            $updateParams[] = $avatarUrl;
+            error_log("Avatar URL changed, updating database");
+        }
+        
+        // Update user record
+        $updateStmt = $pdo->prepare("UPDATE users SET " . implode(', ', $updateFields) . " WHERE id = ?");
         if (!$updateStmt) {
             throw new Exception('Failed to prepare update query: ' . implode(', ', $pdo->errorInfo()));
         }
-        $updateStmt->execute([$existingUser['id']]);
+        $updateStmt->execute($updateParams);
         
         // Check if user has dealer account
         $dealerStmt = $pdo->prepare("
@@ -123,16 +143,16 @@ try {
         
         // Set session variables for existing user
         $_SESSION['user_id'] = $existingUser['id'];
-        $_SESSION['user_name'] = $existingUser['name'];
+        $_SESSION['user_name'] = $characterName; // Use updated character name
         $_SESSION['gta_world_id'] = $existingUser['gta_world_id'];
         
         $userData = [
             'id' => $existingUser['id'],
-            'name' => $existingUser['name'],
+            'name' => $characterName, // Use updated character name
 
             'phone_number' => $existingUser['phone_number'] ?? null,
             'routing_number' => $existingUser['routing_number'] ?? null,
-            'avatar_url' => $existingUser['avatar_url'],
+            'avatar_url' => $avatarUrl, // Use updated avatar
             'is_dealer' => !empty($dealerAccount),
             'staff_role' => $existingUser['staff_role'] ?? null,
             'company_name' => $dealerAccount['company_name'] ?? null,
