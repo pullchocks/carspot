@@ -41,6 +41,17 @@ try {
         exit;
     }
     
+    // Check if we have GTA World character data in session to verify name is current
+    if (isset($_SESSION['gta_world_id']) && $_SESSION['gta_world_id'] == $user['gta_world_id']) {
+        // If we have character data in session, use the session name (which should be current)
+        $displayName = $_SESSION['user_name'] ?? $user['name'];
+        $displayAvatar = $_SESSION['user_avatar'] ?? $user['avatar_url'];
+    } else {
+        // Fallback to database values
+        $displayName = $user['name'];
+        $displayAvatar = $user['avatar_url'];
+    }
+    
     // Check if profile is complete
     $profileComplete = !empty($user['routing_number']) && !empty($user['phone_number']);
     
@@ -48,11 +59,11 @@ try {
         'authenticated' => true,
         'user' => [
             'id' => $user['id'],
-            'name' => $user['name'],
+            'name' => $displayName,
 
             'phone_number' => $user['phone_number'],
             'routing_number' => $user['routing_number'],
-            'avatar_url' => $user['avatar_url'],
+            'avatar_url' => $displayAvatar,
             'is_dealer' => $user['is_dealer'],
             'staff_role' => $user['staff_role'],
             'company_name' => $user['company_name'],

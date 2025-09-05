@@ -144,6 +144,7 @@ try {
         // Set session variables for existing user
         $_SESSION['user_id'] = $existingUser['id'];
         $_SESSION['user_name'] = $characterName; // Use updated character name
+        $_SESSION['user_avatar'] = $avatarUrl; // Use updated avatar
         $_SESSION['gta_world_id'] = $existingUser['gta_world_id'];
         
         $userData = [
@@ -161,6 +162,7 @@ try {
             'created_at' => $existingUser['created_at'] ?? null
         ];
         
+        error_log("Returning user data with name: " . $characterName . " (was: " . $currentName . ")");
         echo json_encode($userData);
         exit;
     }
